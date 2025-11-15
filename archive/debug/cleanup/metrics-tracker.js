@@ -1,0 +1,261 @@
+#!/usr/bin/env node
+
+/**
+ * Autonomous Work & Individual Metrics Tracker
+ * Runs on schedule, collects metrics via notifications, analyzes with Claude
+ */
+
+const fs = require('fs').promises;
+const path = require('path');
+const { exec } = require('child_process');
+const util = require('util');
+const execPromise = util.promisify(exec);
+
+// Configuration
+const CONFIG_FILE = path.join(__dirname, 'config.json');
+const DATA_FILE = path.join(__dirname, 'metrics_data.json');
+const LOG_FILE = path.join(__dirname, 'metrics_log.csv');
+
+// Metrics questions
+const QUESTIONS = [
+  { key: 'deadline_pressure', question: 'Urgent deadline pressure (1-10):', type: 'number' },
+  { key: 'unmet_requests', question: 'Requests I feel I cannot meet (1-10):', type: 'number' },
+  { key: 'project_chaos', question: 'Project chaos (1-10; 1=structured, 10=disordered):', type: 'number' },
+  { key: 'apologies', question: 'Apologies made in client meetings (1-10):', type: 'number' },
+  { key: 'jira_autonomy', question: 'Jira stories I can execute independently (1-10):', type: 'number' },
+  { key: 'urgent_alignment', question: 'Urgent stakeholder alignment required (1-10):', type: 'number' },
+  { key: 'unwanted_meetings', question: 'Unwanted meetings attended (1-10):', type: 'number' },
+  { key: 'anxiety', question: 'Anxiety (1-10):', type: 'number' },
+  { key: 'irritability', question: 'Irritability (1-10):', type: 'number' },
+  { key: 'stress_outside', question: 'Stress outside work (1-10):', type: 'number' },
+  { key: 'sleep_quality', question: 'Sleep quality (1-10):', type: 'number' },
+  { key: 'self_development', question: 'Self-development time realized (1-10):', type: 'number' },
+  { key: 'new_horizon', question: 'New project horizon emerging? (yes/no):', type: 'yesno' },
+  { key: 'quiet_blocks', question: 'Quiet work blocks (1-10):', type: 'number' },
+  { key: 'saying_no', question: 'Saying no to unwanted requests (1-10):', type: 'number' },
+  { key: 'keeping_moses', question: 'Feeling of keeping Moses at bay (1-10):', type: 'number' }
+];
+
+// Send Mac notification
+async function notify(title, message, sound = 'default') {
+  const script = `display notification "${message.replace(/"/g, '\\"')}" with title "${title.replace(/"/g, '\\"')}" sound name "${sound}"`;
+  await execPromise(`osascript -e '${script}'`);
+}
+
+// Show dialog and get input
+async function askQuestion(question) {
+  try {
+    const script = `
+      set response to text returned of (display dialog "${question.replace(/"/g, '\\"')}" default answer "" buttons {"OK"} default button "OK")
+      return response
+    `;
+    const { stdout } = await execPromise(`osascript -e '${script}'`);
+    return stdout.trim();
+  } catch (error) {
+    throw new Error('User cancelled or dialog error');
+  }
+}
+
+// Load configuration
+async function loadConfig() {
+  try {
+    const data = await fs.readFile(CONFIG_FILE, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    throw new Error('Config file not found. Run setup first: node setup.js');
+  }
+}
+
+// Load previous metrics
+async function loadPreviousMetrics() {
+  try {
+    const data = await fs.readFile(DATA_FILE, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    return null;
+  }
+}
+
+// Save current metrics
+async function saveMetrics(metrics) {
+  await fs.writeFile(DATA_FILE, JSON.stringify(metrics, null, 2));
+}
+
+// Call Claude API
+async function analyzeWithClaude(config, currentMetrics, previousMetrics) {
+  const prompt = buildAnalysisPrompt(currentMetrics, previousMetrics);
+  
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': config.anthropicApiKey,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2000,
+      messages: [{
+        role: 'user',
+        content: prompt
+      }]
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Claude API error: ${response.status} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  return data.content[0].text;
+}
+
+// Build analysis prompt
+function buildAnalysisPrompt(current, previous) {
+  let prompt = `# Work & Individual Metrics Analysis\n\n## Current Metrics\n`;
+  
+  QUESTIONS.forEach(q => {
+    prompt += `- ${q.question} ${current[q.key]}\n`;
+  });
+
+  if (previous) {
+    prompt += `\n## Previous Metrics (${previous.date})\n`;
+    QUESTIONS.forEach(q => {
+      const delta = q.type === 'number' ? current[q.key] - previous[q.key] : 'N/A';
+      prompt += `- ${q.question} ${previous[q.key]} (Δ: ${delta})\n`;
+    });
+  }
+
+  prompt += `\n## Instructions\n
+1. Create a comparison table showing current, previous, and delta values
+2. Summarize main trends in 2-3 sentences
+3. Generate Reflex Actions based on these rules:
+
+REFLEX ACTION RULES:
+- Requests ≥ 8 → TERP Escalation Template
+- Sleep ≤ 4 → Sleep Recovery Plan
+- Anxiety ≥ 8 or Irritability ≥ 8 → Calm Reset
+- Project chaos ≥ 7 → Anti-Chaos Routine (including Pull-Request Chaos Protocol)
+- Jira autonomy ≤ 4 → Self-Authorization Rule
+- Stress outside work ≥ 8 → Therapy & Source Check
+- Quiet work blocks ≤ 3 → Daily Deep-Work Anchor
+
+4. If any of these ≥ 6, recommend using delivery_log.md:
+   - Urgent deadline pressure
+   - Unmet requests
+   - Project chaos
+   - Unwanted meetings
+   - Anxiety
+   - Irritability
+
+Format your response as:
+### Comparison Table
+[table here]
+
+### Trend Summary
+[summary here]
+
+### Reflex Actions
+[actions here]
+
+### CSV Row
+[date,all values comma-separated]
+`;
+
+  return prompt;
+}
+
+// Append to CSV log
+async function appendToCSV(metrics) {
+  const headers = 'date,' + QUESTIONS.map(q => q.key).join(',') + '\n';
+  const row = metrics.date + ',' + QUESTIONS.map(q => metrics[q.key]).join(',') + '\n';
+  
+  try {
+    await fs.access(LOG_FILE);
+    await fs.appendFile(LOG_FILE, row);
+  } catch {
+    await fs.writeFile(LOG_FILE, headers + row);
+  }
+}
+
+// Main execution
+async function main() {
+  try {
+    await notify('Metrics Tracker', '📊 Starting metrics collection...');
+    
+    // Load config
+    const config = await loadConfig();
+    
+    // Collect metrics
+    const currentMetrics = {
+      date: new Date().toISOString().split('T')[0],
+    };
+    
+    await notify('Metrics Collection', 'Please answer the following questions...');
+    
+    for (const question of QUESTIONS) {
+      const answer = await askQuestion(question.question);
+      
+      if (question.type === 'number') {
+        currentMetrics[question.key] = parseInt(answer);
+      } else {
+        currentMetrics[question.key] = answer.toLowerCase();
+      }
+    }
+    
+    // Load previous metrics
+    const previousMetrics = await loadPreviousMetrics();
+    
+    // Analyze with Claude
+    await notify('Analyzing...', '🤔 Claude is analyzing your metrics...');
+    const analysis = await analyzeWithClaude(config, currentMetrics, previousMetrics);
+    
+    // Save current metrics
+    await saveMetrics(currentMetrics);
+    
+    // Append to CSV
+    await appendToCSV(currentMetrics);
+    
+    // Show results
+    await notify('Analysis Complete! ✅', 'Opening results...', 'Glass');
+    
+    // Save analysis to file
+    const analysisFile = path.join(__dirname, `analysis_${currentMetrics.date}.txt`);
+    await fs.writeFile(analysisFile, analysis);
+    
+    // Open analysis file
+    await execPromise(`open "${analysisFile}"`);
+    
+    // Generate and open visual dashboard
+    await notify('Creating Dashboard...', '📊 Generating visual trends...');
+    try {
+      const { exec } = require('child_process');
+      const util = require('util');
+      const execProm = util.promisify(exec);
+      
+      // Start Streamlit dashboard in background
+      exec('cd /Users/alavar/metrics-tracker && streamlit run visualizer.py --server.headless true &');
+      
+      // Wait a moment then open browser
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      await execProm('open http://localhost:8501');
+    } catch (vizError) {
+      console.log('Dashboard error:', vizError.message);
+    }
+    
+    await notify('Done!', 'Check the analysis file and dashboard.');
+    
+  } catch (error) {
+    await notify('Error', `Metrics tracker failed: ${error.message}`, 'Basso');
+    console.error(error);
+    process.exit(1);
+  }
+}
+
+// Run if called directly
+if (require.main === module) {
+  main();
+}
+
+module.exports = { main };

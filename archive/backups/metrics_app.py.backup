@@ -1,0 +1,507 @@
+#!/usr/bin/env python3
+"""
+Complete Metrics Tracker - Streamlit App
+Always-on app with selective metric input, form validation, and visualizations
+"""
+
+import streamlit as st
+import pandas as pd
+import plotly.graph_objects as go
+from pathlib import Path
+from datetime import datetime, timedelta
+import os
+from dotenv import load_dotenv
+from anthropic import Anthropic
+
+# Load environment variables
+load_dotenv()
+
+# Configuration
+BASE_DIR = Path(__file__).parent
+DATA_FILE = BASE_DIR / 'metrics_data.csv'
+LAST_PROMPT_FILE = BASE_DIR / 'last_prompt.txt'
+
+# Load thresholds from .env
+THRESHOLDS = {
+    'anxiety_high': int(os.getenv('ANXIETY_HIGH', 7)),
+    'anxiety_medium': int(os.getenv('ANXIETY_MEDIUM', 5)),
+    'irritability_high': int(os.getenv('IRRITABILITY_HIGH', 8)),
+    'sleep_poor': int(os.getenv('SLEEP_POOR', 4)),
+    'chaos_high': int(os.getenv('PROJECT_CHAOS_HIGH', 7)),
+    'meetings_high': int(os.getenv('UNWANTED_MEETINGS_HIGH', 6)),
+    'quiet_low': int(os.getenv('QUIET_BLOCKS_LOW', 4)),
+    'saying_no_low': int(os.getenv('SAYING_NO_LOW', 4)),
+    'requests_high': int(os.getenv('UNMET_REQUESTS_HIGH', 8)),
+    'stress_high': int(os.getenv('STRESS_OUTSIDE_HIGH', 8)),
+    'jira_low': int(os.getenv('JIRA_AUTONOMY_LOW', 4)),
+    'delivery_log': int(os.getenv('DELIVERY_LOG_THRESHOLD', 6))
+}
+
+PROMPT_WEEKDAYS = [int(d) for d in os.getenv('PROMPT_WEEKDAYS', '2,4').split(',')]
+
+# Page config
+st.set_page_config(
+    page_title="Metrics Tracker",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Custom CSS
+st.markdown("""
+<style>
+    .main {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .stMetric {
+        background-color: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    h1, h2, h3 {
+        color: white;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+    .alert-high {
+        background-color: #fee;
+        border-left: 4px solid #e74c3c;
+        padding: 15px;
+        border-radius: 5px;
+        margin: 10px 0;
+    }
+    .alert-medium {
+        background-color: #fef9e7;
+        border-left: 4px solid #f39c12;
+        padding: 15px;
+        border-radius: 5px;
+        margin: 10px 0;
+    }
+    .alert-low {
+        background-color: #eafaf1;
+        border-left: 4px solid #2ecc71;
+        padding: 15px;
+        border-radius: 5px;
+        margin: 10px 0;
+    }
+    .prompt-banner {
+        background: linear-gradient(90deg, #f093fb 0%, #f5576c 100%);
+        color: white;
+        padding: 20px;
+        border-radius: 10px;
+        text-align: center;
+        font-size: 1.2em;
+        margin-bottom: 20px;
+        animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.8; }
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Metrics definition
+QUESTIONS = [
+    {'key': 'deadline_pressure', 'label': 'Urgent deadline pressure', 'category': 'work'},
+    {'key': 'unmet_requests', 'label': 'Requests I feel I cannot meet', 'category': 'work'},
+    {'key': 'project_chaos', 'label': 'Project chaos', 'category': 'work'},
+    {'key': 'apologies', 'label': 'Apologies made in client meetings', 'category': 'work'},
+    {'key': 'jira_autonomy', 'label': 'Jira stories I can execute independently', 'category': 'work'},
+    {'key': 'urgent_alignment', 'label': 'Urgent stakeholder alignment required', 'category': 'work'},
+    {'key': 'unwanted_meetings', 'label': 'Unwanted meetings attended', 'category': 'work'},
+    {'key': 'anxiety', 'label': 'Anxiety', 'category': 'individual'},
+    {'key': 'irritability', 'label': 'Irritability', 'category': 'individual'},
+    {'key': 'stress_outside', 'label': 'Stress outside work', 'category': 'individual'},
+    {'key': 'sleep_quality', 'label': 'Sleep quality', 'category': 'individual'},
+    {'key': 'self_development', 'label': 'Self-development time realized', 'category': 'individual'},
+    {'key': 'new_horizon', 'label': 'New project horizon emerging?', 'category': 'individual', 'type': 'yesno'},
+    {'key': 'quiet_blocks', 'label': 'Quiet work blocks', 'category': 'individual'},
+    {'key': 'saying_no', 'label': 'Saying "no" to unwanted requests', 'category': 'individual'},
+    {'key': 'keeping_moses', 'label': 'Feeling of "keeping Moses at bay"', 'category': 'individual'}
+]
+
+def should_prompt_today():
+    """Check if we should prompt for input today"""
+    today = datetime.now()
+    weekday = today.isoweekday()  # 1=Monday, 7=Sunday
+    
+    # Check if today is a prompt day
+    if weekday not in PROMPT_WEEKDAYS:
+        return False, "Not a scheduled day"
+    
+    # Check if already filled today
+    if DATA_FILE.exists():
+        df = pd.read_csv(DATA_FILE)
+        if len(df) > 0:
+            df['date'] = pd.to_datetime(df['date'])
+            last_entry = df.iloc[-1]['date'].date()
+            if last_entry == today.date():
+                return False, "Already filled today"
+    
+    return True, "Ready for input!"
+
+def load_data():
+    """Load all historical data"""
+    if not DATA_FILE.exists():
+        return pd.DataFrame()
+    return pd.read_csv(DATA_FILE)
+
+def save_entry(metrics):
+    """Save a new metrics entry"""
+    df = load_data()
+    new_entry = pd.DataFrame([metrics])
+    
+    if len(df) == 0:
+        df = new_entry
+    else:
+        df = pd.concat([df, new_entry], ignore_index=True)
+    
+    df.to_csv(DATA_FILE, index=False)
+
+def get_previous_entry():
+    """Get the most recent previous entry"""
+    df = load_data()
+    if len(df) < 2:
+        return None
+    return df.iloc[-2].to_dict()
+
+def analyze_with_claude(metrics, previous):
+    """Analyze metrics with Claude API"""
+    api_key = os.getenv('ANTHROPIC_API_KEY')
+    if not api_key or api_key == 'your_key_here':
+        return "⚠️ No API key configured. Set ANTHROPIC_API_KEY in .env file."
+    
+    # Build prompt
+    prompt = "# Work & Individual Metrics Analysis\n\n## Current Metrics\n"
+    
+    for q in QUESTIONS:
+        if q['key'] in metrics and metrics[q['key']] is not None:
+            prompt += f"- {q['label']}: {metrics[q['key']]}\n"
+    
+    if previous:
+        prompt += f"\n## Previous Metrics\n"
+        for q in QUESTIONS:
+            if q['key'] in metrics and metrics[q['key']] is not None:
+                if q.get('type') != 'yesno' and q['key'] in previous:
+                    try:
+                        delta = float(metrics[q['key']]) - float(previous[q['key']])
+                        prompt += f"- {q['label']}: {previous[q['key']]} (Δ: {delta:+.1f})\n"
+                    except:
+                        prompt += f"- {q['label']}: {previous[q['key']]}\n"
+    
+    prompt += f"""
+## Instructions
+Analyze these metrics and provide:
+
+1. **Comparison Table** - Show current vs previous with deltas
+2. **Trend Summary** - 2-3 sentences on main patterns
+3. **Reflex Actions** based on these rules:
+   - Unmet requests ≥{THRESHOLDS['requests_high']} → TERP Escalation Template
+   - Sleep quality ≤{THRESHOLDS['sleep_poor']} → Sleep Recovery Plan
+   - Anxiety ≥{THRESHOLDS['anxiety_high']} or Irritability ≥{THRESHOLDS['irritability_high']} → Calm Reset (nVNS + 10 min walk)
+   - Project chaos ≥{THRESHOLDS['chaos_high']} → Anti-Chaos Routine + Pull-Request Chaos Protocol
+   - Jira autonomy ≤{THRESHOLDS['jira_low']} → Self-Authorization Rule
+   - Stress outside ≥{THRESHOLDS['stress_high']} → Therapy & Source Check
+   - Quiet blocks ≤{THRESHOLDS['quiet_low']} → Daily Deep-Work Anchor (protect 2-hour block)
+
+4. **Delivery Log Recommendation** if any of these ≥{THRESHOLDS['delivery_log']}:
+   deadline_pressure, unmet_requests, project_chaos, unwanted_meetings, anxiety, irritability
+
+Format: Use headers (###) and make it scannable.
+"""
+    
+    try:
+        client = Anthropic(api_key=api_key)
+        message = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=2000,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return message.content[0].text
+    except Exception as e:
+        return f"⚠️ Claude API Error: {str(e)}"
+
+def generate_insights(metrics, previous):
+    """Generate actionable insights"""
+    insights = []
+    
+    # High priority alerts
+    if metrics.get('anxiety') and metrics['anxiety'] >= THRESHOLDS['anxiety_high']:
+        insights.append(('high', f"⚠️ High anxiety (≥{THRESHOLDS['anxiety_high']}). Use nVNS + 10 min walk."))
+    
+    if metrics.get('project_chaos') and metrics['project_chaos'] >= THRESHOLDS['chaos_high']:
+        insights.append(('high', f"⚠️ High project chaos (≥{THRESHOLDS['chaos_high']}). Activate Anti-Chaos Routine."))
+    
+    if metrics.get('sleep_quality') and metrics['sleep_quality'] <= THRESHOLDS['sleep_poor']:
+        insights.append(('high', f"⚠️ Poor sleep quality (≤{THRESHOLDS['sleep_poor']}). Review Sleep Recovery Plan."))
+    
+    # Medium priority
+    if metrics.get('unwanted_meetings') and metrics['unwanted_meetings'] >= THRESHOLDS['meetings_high']:
+        insights.append(('medium', f"⚡ Many unwanted meetings (≥{THRESHOLDS['meetings_high']}). Use skip-meeting template."))
+    
+    if metrics.get('quiet_blocks') and metrics['quiet_blocks'] <= THRESHOLDS['quiet_low']:
+        insights.append(('medium', f"⚡ Low quiet work blocks (≤{THRESHOLDS['quiet_low']}). Protect your 2-hour deep work anchor."))
+    
+    # Positive trends
+    if previous:
+        if metrics.get('anxiety') and previous.get('anxiety'):
+            if metrics['anxiety'] < previous['anxiety']:
+                insights.append(('low', '✅ Anxiety decreased - great progress!'))
+        
+        if metrics.get('sleep_quality') and previous.get('sleep_quality'):
+            if metrics['sleep_quality'] > previous['sleep_quality']:
+                insights.append(('low', '✅ Sleep quality improved!'))
+    
+    if not insights:
+        insights.append(('low', '✅ All metrics within healthy ranges. Keep it up!'))
+    
+    return insights
+
+def main():
+    st.title("📊 Work & Individual Metrics Tracker")
+    
+    # Check if input needed
+    needs_prompt, reason = should_prompt_today()
+    
+    # Tab navigation
+    tab1, tab2, tab3 = st.tabs(["📝 New Entry", "📊 Dashboard", "ℹ️ About"])
+    
+    with tab1:
+        if needs_prompt:
+            st.markdown('<div class="prompt-banner">🔔 Time for your metrics check-in!</div>', unsafe_allow_html=True)
+        
+        st.header("Input Your Metrics")
+        st.markdown("**Select which metrics to fill** (uncheck to skip)")
+        
+        previous = get_previous_entry()
+        if previous:
+            st.info(f"📅 Last entry: {previous.get('date', 'Unknown')}")
+        
+        # Initialize metrics dict
+        metrics = {'date': datetime.now().strftime('%Y-%m-%d')}
+        
+        with st.form("metrics_form"):
+            # Work Metrics
+            st.subheader("💼 Work Metrics")
+            work_qs = [q for q in QUESTIONS if q.get('category') == 'work']
+            
+            for q in work_qs:
+                col1, col2 = st.columns([1, 4])
+                with col1:
+                    enabled = st.checkbox("", value=True, key=f"enable_{q['key']}")
+                with col2:
+                    if q.get('type') == 'yesno':
+                        val = st.selectbox(q['label'], ['yes', 'no'], key=q['key'], disabled=not enabled)
+                        if enabled:
+                            metrics[q['key']] = val
+                    else:
+                        val = st.slider(q['label'], 1, 10, 5, key=q['key'], disabled=not enabled)
+                        if enabled:
+                            metrics[q['key']] = val
+            
+            st.markdown("---")
+            
+            # Individual Metrics
+            st.subheader("🧘 Individual Metrics")
+            individual_qs = [q for q in QUESTIONS if q.get('category') == 'individual']
+            
+            for q in individual_qs:
+                col1, col2 = st.columns([1, 4])
+                with col1:
+                    enabled = st.checkbox("", value=True, key=f"enable_{q['key']}")
+                with col2:
+                    if q.get('type') == 'yesno':
+                        val = st.selectbox(q['label'], ['yes', 'no'], key=q['key'], disabled=not enabled)
+                        if enabled:
+                            metrics[q['key']] = val
+                    else:
+                        val = st.slider(q['label'], 1, 10, 5, key=q['key'], disabled=not enabled)
+                        if enabled:
+                            metrics[q['key']] = val
+            
+            submitted = st.form_submit_button("🚀 Analyze & Save", use_container_width=True)
+            
+            if submitted:
+                with st.spinner("🤔 Claude is analyzing your metrics..."):
+                    try:
+                        # Get Claude analysis
+                        analysis = analyze_with_claude(metrics, previous)
+                        
+                        # Save metrics
+                        save_entry(metrics)
+                        
+                        # Show results
+                        st.success("✅ Analysis complete and saved!")
+                        st.markdown("---")
+                        st.markdown(analysis)
+                        
+                        # Show quick insights
+                        st.markdown("---")
+                        st.subheader("🎯 Quick Insights")
+                        insights = generate_insights(metrics, previous)
+                        for level, text in insights:
+                            st.markdown(f'<div class="alert-{level}">{text}</div>', unsafe_allow_html=True)
+                        
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
+    
+    with tab2:
+        st.header("📊 Metrics Dashboard")
+        
+        df = load_data()
+        
+        if len(df) == 0:
+            st.warning("No data yet. Fill in your first entry in the 'New Entry' tab!")
+            return
+        
+        df['date'] = pd.to_datetime(df['date'])
+        
+        # Get latest and previous
+        latest = df.iloc[-1]
+        previous = df.iloc[-2] if len(df) > 1 else None
+        
+        # Filter options
+        n_entries = st.sidebar.slider("Show last N entries", 1, len(df), min(10, len(df)))
+        df_display = df.tail(n_entries)
+        
+        # Key Metrics Cards
+        st.markdown("### Key Metrics")
+        col1, col2, col3, col4 = st.columns(4)
+        
+        def calc_delta(key):
+            if previous is not None and key in previous:
+                try:
+                    return float(latest[key] - previous[key])
+                except:
+                    return 0
+            return 0
+        
+        with col1:
+            if 'anxiety' in latest:
+                st.metric("Anxiety", f"{latest['anxiety']:.1f}", f"{calc_delta('anxiety'):+.1f}", delta_color="inverse")
+        
+        with col2:
+            if 'project_chaos' in latest:
+                st.metric("Project Chaos", f"{latest['project_chaos']:.1f}", f"{calc_delta('project_chaos'):+.1f}", delta_color="inverse")
+        
+        with col3:
+            if 'sleep_quality' in latest:
+                st.metric("Sleep Quality", f"{latest['sleep_quality']:.1f}", f"{calc_delta('sleep_quality'):+.1f}")
+        
+        with col4:
+            if 'quiet_blocks' in latest:
+                st.metric("Quiet Blocks", f"{latest['quiet_blocks']:.1f}", f"{calc_delta('quiet_blocks'):+.1f}")
+        
+        # Charts
+        st.markdown("---")
+        
+        # Work Metrics Chart
+        st.subheader("📈 Work Metrics Over Time")
+        work_metrics = ['deadline_pressure', 'unmet_requests', 'project_chaos', 'unwanted_meetings']
+        work_metrics = [m for m in work_metrics if m in df_display.columns]
+        
+        if work_metrics:
+            colors = ['#667eea', '#764ba2', '#f093fb', '#4facfe']
+            fig_work = go.Figure()
+            
+            for i, metric in enumerate(work_metrics):
+                fig_work.add_trace(go.Scatter(
+                    x=df_display['date'],
+                    y=df_display[metric],
+                    name=metric.replace('_', ' ').title(),
+                    mode='lines+markers',
+                    line=dict(color=colors[i % len(colors)], width=3),
+                    marker=dict(size=8)
+                ))
+            
+            fig_work.update_layout(
+                height=400,
+                hovermode='x unified',
+                plot_bgcolor='white',
+                paper_bgcolor='white',
+                yaxis=dict(range=[0, 10], title="Score (1-10)"),
+                xaxis=dict(title="Date"),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+            
+            st.plotly_chart(fig_work, use_container_width=True)
+        
+        # Individual Metrics Chart
+        st.subheader("🧘 Individual Metrics Over Time")
+        individual_metrics = ['anxiety', 'irritability', 'sleep_quality', 'quiet_blocks']
+        individual_metrics = [m for m in individual_metrics if m in df_display.columns]
+        
+        if individual_metrics:
+            fig_individual = go.Figure()
+            
+            for i, metric in enumerate(individual_metrics):
+                fig_individual.add_trace(go.Scatter(
+                    x=df_display['date'],
+                    y=df_display[metric],
+                    name=metric.replace('_', ' ').title(),
+                    mode='lines+markers',
+                    line=dict(color=colors[i % len(colors)], width=3),
+                    marker=dict(size=8)
+                ))
+            
+            fig_individual.update_layout(
+                height=400,
+                hovermode='x unified',
+                plot_bgcolor='white',
+                paper_bgcolor='white',
+                yaxis=dict(range=[0, 10], title="Score (1-10)"),
+                xaxis=dict(title="Date"),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+            
+            st.plotly_chart(fig_individual, use_container_width=True)
+        
+        # Current Insights
+        st.markdown("---")
+        st.subheader("🎯 Current Status")
+        
+        insights = generate_insights(latest.to_dict(), previous.to_dict() if previous is not None else None)
+        for level, text in insights:
+            st.markdown(f'<div class="alert-{level}">{text}</div>', unsafe_allow_html=True)
+        
+        # Raw data
+        with st.expander("📋 View Raw Data"):
+            st.dataframe(df_display.sort_values('date', ascending=False), use_container_width=True)
+    
+    with tab3:
+        st.header("ℹ️ About This Tracker")
+        
+        st.markdown("""
+        ### 📊 Work & Individual Metrics Tracker
+        
+        **Purpose:** Track your work stress, individual well-being, and get AI-powered insights.
+        
+        **How it works:**
+        1. **Schedule:** Shows prompt banner on configured days (default: Tue/Thu)
+        2. **Selective Input:** Check/uncheck metrics you want to track each time
+        3. **Analysis:** Claude AI analyzes your metrics and provides reflex actions
+        4. **Visualization:** See trends over time with interactive charts
+        5. **Storage:** All data saved in CSV file for easy backup
+        
+        **Configuration:**
+        - Edit `.env` file to customize alert thresholds
+        - Change `PROMPT_WEEKDAYS` to adjust schedule
+        - Set your `ANTHROPIC_API_KEY` for AI analysis
+        
+        **Reflex Actions:**
+        - 🔴 High alerts trigger immediate actions (nVNS, chaos protocols)
+        - 🟡 Medium alerts suggest preventive measures (meeting templates)
+        - 🟢 Positive trends reinforce good habits
+        
+        **Data Privacy:**
+        - All data stored locally in `metrics_data.csv`
+        - API calls only when you submit a form
+        - No data sent anywhere except Claude API for analysis
+        """)
+        
+        st.markdown("---")
+        st.caption("Built with Streamlit • Powered by Claude AI • Data stored locally")
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,34 @@
+I notice that all current metrics are showing as "NaN" (Not a Number), which means no values have been entered for the current assessment. To provide a proper analysis, I'll need you to fill in the current metrics first.
+
+### Comparison Table
+| Metric | Current | Previous (2025-11-12) | Delta |
+|--------|---------|----------------------|-------|
+| Urgent deadline pressure | NaN | 4 | NaN |
+| Requests I cannot meet | NaN | 3 | NaN |
+| Project chaos | NaN | 6 | NaN |
+| Apologies in client meetings | NaN | 3 | NaN |
+| Jira independence | NaN | 4 | NaN |
+| Urgent stakeholder alignment | NaN | 6 | NaN |
+| Unwanted meetings | NaN | 3 | NaN |
+| Anxiety | NaN | 7 | NaN |
+| Irritability | NaN | 3 | NaN |
+| Stress outside work | NaN | 3 | NaN |
+| Sleep quality | NaN | 2 | NaN |
+| Self-development time | NaN | 3 | NaN |
+| New project horizon | [blank] | yes | N/A |
+| Quiet work blocks | NaN | 2 | NaN |
+| Saying no to requests | NaN | 3 | NaN |
+| Keeping Moses at bay | NaN | 5 | NaN |
+
+### Trend Summary
+Cannot analyze trends as current metrics are not provided. Previous assessment from 2025-11-12 showed concerning levels in anxiety (7), project chaos (6), urgent stakeholder alignment (6), very poor sleep quality (2), and minimal quiet work blocks (2).
+
+### Reflex Actions
+Based on previous metrics that may still be relevant:
+- **Sleep Recovery Plan** - Previous sleep quality was critically low (2)
+- **Daily Deep-Work Anchor** - Previous quiet work blocks were minimal (2)
+
+Please fill in your current metric values so I can provide a complete analysis with proper reflex actions and recommendations.
+
+### CSV Row
+Cannot generate CSV row without current values. Please provide current metrics first.

@@ -1,0 +1,262 @@
+title: Work & Individual Metrics Tracker
+
+prompt: |
+  Each Tuesday and Thursday:
+
+  1. Ask me for all metrics below (1–10 or Yes/No).
+  2. If the user provides FREE FORM CONTEXT, incorporate it prominently into the narrative.
+  3. Recall my previous reflection entry (memory key: latest_metrics_entry).
+  4. Build a coherent narrative story that:
+     - **Uses RAW NUMERIC VALUES directly** (e.g., "deadline pressure at 9" vs "at 3")
+     - **Does NOT apply fixed thresholds** - interpret numbers contextually
+     - **Integrates the user's free-form context** if provided
+     - Identifies patterns and connections between metrics
+     - Provides specific, actionable insights
+  5. Organize metric changes into three categories: Rising (needs attention), Declining (improving), and Stable.
+  6. Generate **TOP 1-3 PRIORITY RECOMMENDATIONS ONLY** from the ALLOWED FINITE SET below - ranked by importance.
+  7. Save the new results in memory as latest_metrics_entry.
+  8. Print the CSV row for my manual log.
+
+  **CRITICAL: DO NOT OVERWHELM THE USER**
+  - Focus on the MOST IMPORTANT issues only
+  - Provide 1-3 recommendations maximum, ranked by priority
+  - Start with #1 (highest priority), then #2, then #3 if needed
+  - Each recommendation should be specific and actionable
+  - Stay true to delivery log principles and core protocols
+  - **ONLY recommend actions from the ALLOWED FINITE SET below - NO other recommendations**
+
+  SCALE
+    1 = very low / excellent / no issue
+    10 = extreme / severe / constant issue
+
+  QUESTIONS
+    WORK METRICS
+      - Urgent deadline pressure (1–10)
+      - Requests I feel I cannot meet (1–10)
+      - Project chaos (1–10; 1=structured, 10=disordered)
+      - Apologies made in client meetings (1–10)
+      - Jira stories blocked by others (1–10; 1=fully autonomous, 10=completely blocked)
+      - Urgent stakeholder alignment required (1–10)
+      - Unwanted meetings attended (1–10; 1=skip all useless, 10=attend all)
+
+    INDIVIDUAL METRICS
+      - Anxiety (1–10)
+      - Irritability (1–10)
+      - Stress outside work (1–10)
+      - Sleep issues (1–10; 1=excellent sleep, 10=severe issues)
+      - Self-development time unrealized (1–10; 1=fully realized, 10=none achieved)
+      - Not following daily schedule (1–10; 1=perfect adherence, 10=complete chaos)
+        * Explanation: Measures how well I stick to my predefined daily schedule including:
+          - Taking medicines at set times
+          - Physical exercise routines
+          - Music practice/listening at scheduled times
+      - Average pain levels (1–10; 1=no pain, 10=severe constant pain)
+          - Other time-blocked activities
+      - New project horizon emerging? (Yes/No)
+      - Quiet work blocks insufficient (1–10; 1=plenty of deep work, 10=none available)
+      - Cannot say "no" to unwanted requests (1–10; 1=always say no, 10=never say no)
+      - Not keeping Moses at bay (1–10; 1=well managed, 10=overwhelming)
+
+    FREE FORM CONTEXT (OPTIONAL)
+      - Additional context, specific situations, or concerns to help build a better story
+
+  OUTPUT FORMAT
+    1. **Narrative Story** - coherent analysis incorporating raw values and user context
+    2. **Metric Changes** - organized by: Rising, Declining, Stable
+    3. **TOP PRIORITY RECOMMENDATIONS** (1-3 only, ranked, MUST be from allowed set below)
+    4. **CSV row** for logging
+    5. "✅ Entry saved for comparison next time."
+
+  CORE PRINCIPLES (Stay true to these)
+
+    **Delivery Log Philosophy:**
+    - Value > permission (demonstrate through delivery)
+    - No defensive apologies
+    - Document scope changes, avoid scope creep
+    - Skip useless meetings, batch communication
+    - Protect deep work time religiously
+    
+    **Slow Productivity & Deep Work:**
+    - Fewer things, done better
+    - Depth > responsiveness
+    - Reject "constant sync" culture
+    - Protect solitude daily
+    - Deliberate shutdown ritual
+
+  ==========================================
+  ALLOWED RECOMMENDATIONS - FINITE SET ONLY
+  ==========================================
+  
+  **You MUST only recommend from these categories. NO other recommendations allowed.**
+
+  PHYSICAL INTERVENTIONS:
+    - Yoga practice
+    - Gym workout
+    - Walks outside (minimum 10 minutes)
+    - Swimming & Sauna session
+
+  MIND INTERVENTIONS:
+    - Talk to calm my inner child (inner child work/dialogue)
+    - Headband training (neurofeedback/meditation device)
+    - Vagus nerve stimulation (nVNS device)
+    - Deep breathing exercises (10 minutes minimum)
+    - Seek help from wife (emotional support, talking through issues)
+    - Somatic therapy session
+    - EFT (Emotional Freedom Technique) therapy session
+
+  OVERALL HEALTH:
+    - Follow nutrition schedule (specific meal timing and content)
+    - Follow medicine schedule (take prescribed medications on time)
+    - Schedule physiotherapy visit
+
+  PROJECT MANAGEMENT ACTIONS:
+    - Use TERP response template for overbooking:
+      ```
+      Hi [Name],
+      Could you provide the TERP / reference code before I schedule time?
+      Otherwise I'll defer it to stay aligned with current priorities.
+      Thanks for understanding.
+      ```
+    
+    - Activate delivery log for project chaos:
+      * Document current scope explicitly
+      * Track scope change requests
+      * Use delivery log template from repository
+    
+    - Initiate meeting with manager to enforce project clarity:
+      * Request clear ownership definition
+      * Establish decision-making authority
+      * Set boundaries on scope changes
+    
+    - Initiate meeting with Moses to enforce project clarity:
+      * Align on priorities
+      * Clarify expectations
+      * Establish communication protocols
+    
+    - Apply Pull-Request Chaos Protocol:
+      * Post intent note before starting features
+      * Work autonomously without waiting for consensus
+      * Link intent at PR time with documented agreement
+      * Reply to scope changes: "Happy to adjust in next iteration; merging this to avoid stagnation"
+    
+    - Apply Skip-Meeting Template:
+      ```
+      Hi all,
+      I'll skip this call to keep focus on the feature in progress.
+      Please share any key notes async — I'll read and adapt as needed.
+      Thanks for understanding.
+      ```
+    
+    - Self-Authorization Protocol (when blocked on Jira):
+      * Choose one task completable solo this week
+      * Announce ownership publicly
+      * Demonstrate value through delivery
+      * Remember: Value > permission
+    
+    - Protect Daily Deep-Work Anchor:
+      * Reserve same 2-hour block daily (e.g., 09:00-11:00)
+      * Treat as non-negotiable
+      * Put in calendar as "Focus Block - Do Not Disturb"
+      * Apply Chaos Protocol if challenged at PR time
+
+  ==========================================
+  PRIORITY INTERVENTION RULES
+  ==========================================
+  
+  **CRITICAL: Follow these matching rules when recommending interventions**
+
+  **When Anxiety OR Irritability shows HIGH values (7-10):**
+    
+    Priority Action #1: Talk to calm my inner child
+    - This should be THE FIRST recommendation when feeling anxious or "hard inside"
+    - Inner child work addresses root emotional distress
+    - Helps process feelings and provide self-compassion
+    - Expected impact: Reduce anxiety, irritability, emotional tension
+    
+    Secondary options (only if inner child work already mentioned or multiple issues):
+    - Vagus nerve stimulation (nVNS device) - for physiological calm
+    - Deep breathing exercises - for immediate calm
+    - Seek help from wife - for emotional support
+    - Somatic therapy session - for deeper trauma work
+    - EFT therapy session - for specific emotional blocks
+
+  **When Sleep issues show HIGH values (7-10):**
+    Priority Actions:
+    - Follow medicine schedule (ensure sleep medications taken on time)
+    - Deep breathing exercises before bed
+    - Walks outside during day (helps sleep at night)
+
+  **When Schedule not following shows HIGH values (7-10):**
+    Priority Actions:
+    - Follow medicine schedule (anchor daily routine)
+    - Follow nutrition schedule (provides structure)
+    - Set specific reminders for time-blocked activities
+
+  **When Stress outside work shows HIGH values (8-10):**
+    Priority Actions:
+    - Talk to calm my inner child (address emotional roots)
+    - Somatic therapy session (process stored trauma)
+    - Seek help from wife (emotional support and perspective)
+
+  **When Project chaos OR Unwanted meetings show HIGH values (7-10):**
+    Priority Actions:
+    - Activate delivery log for project chaos
+    - Apply Skip-Meeting Template
+    - Initiate meeting with manager or Moses to enforce clarity
+    - Apply Pull-Request Chaos Protocol
+
+  **When Jira blocked shows HIGH values (7-10):**
+    Priority Action:
+    - Self-Authorization Protocol
+
+  **When Requests cannot meet shows HIGH values (7-10):**
+    Priority Action:
+    - Use TERP response template for overbooking
+
+
+  **When Average pain levels show MODERATE to HIGH values (6-10):**
+    Priority Actions (in order):
+    - Physiotherapy appointment (professional assessment and treatment)
+    - Swimming & Sauna (gentle exercise, reduces inflammation, relaxes muscles)
+    - Walks outside (light movement, releases endorphins, improves circulation)
+    - Yoga practice (improves flexibility, strengthens core, releases tension)
+    - Assess medicine schedule adherence (anti-inflammatory timing matters)
+    - If pain persists >2 weeks at 7+: Consult doctor for treatment adjustment
+  **WHEN RECOMMENDING:**
+  - Match the intervention to the specific metric pattern using rules above
+  - **ALWAYS recommend "Talk to calm my inner child" FIRST when anxiety/irritability/stress is high**
+  - Explain WHY this specific action addresses the observed pattern
+  - Provide the EXPECTED IMPACT on metrics
+  - Only use 1-3 highest priority items from the list above
+  - NEVER recommend anything not on this list
+
+  **RECOMMENDATION STRUCTURE (Maximum 3, from allowed set only)**
+
+    Priority #1: [Action from allowed set - use matching rules above]
+    - Why: [Based on raw metric values and patterns]
+    - Specific Action: [Exact item from finite set above]
+    - Expected Impact: [Which metrics should improve]
+
+    Priority #2: [Action from allowed set] (only if needed)
+    - Why: [...]
+    - Specific Action: [...]
+    - Expected Impact: [...]
+
+    Priority #3: [Action from allowed set] (only if critically needed)
+    - Why: [...]
+    - Specific Action: [...]
+    - Expected Impact: [...]
+
+  Memory rule: Store all current responses under latest_metrics_entry. 
+  If delivery log is modified, also save under delivery_log_template.
+
+schedule: |
+  # --- Production schedule (active normally) ---
+  # BEGIN:VEVENT
+  # RRULE:FREQ=WEEKLY;BYDAY=TU,TH;BYHOUR=10;BYMINUTE=30;BYSECOND=0
+  # END:VEVENT
+
+  # --- Temporary test schedule (runs once today at 13:09) ---
+  # BEGIN:VEVENT
+  # RRULE:FREQ=DAILY;COUNT=1;BYHOUR=13;BYMINUTE=9;BYSECOND=0
+  # END:VEVENT

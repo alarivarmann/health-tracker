@@ -1,0 +1,39 @@
+### Comparison Table
+
+| Metric | Current | Previous | Delta |
+|--------|---------|----------|-------|
+| Urgent deadline pressure | 4 | 3 | +1 |
+| Requests I cannot meet | 3 | 6 | -3 |
+| Project chaos | 6 | 2 | +4 |
+| Apologies in client meetings | 3 | 3 | 0 |
+| Jira stories independence | 4 | 5 | -1 |
+| Urgent stakeholder alignment | 6 | 3 | +3 |
+| Unwanted meetings | 3 | 2 | +1 |
+| Anxiety | 7 | 3 | +4 |
+| Irritability | 3 | 5 | -2 |
+| Stress outside work | 3 | 6 | -3 |
+| Sleep quality | 2 | 2 | 0 |
+| Self-development time | 3 | 6 | -3 |
+| New project horizon | yes | yes | N/A |
+| Quiet work blocks | 2 | 2 | 0 |
+| Saying no to requests | 3 | 2 | +1 |
+| Keeping Moses at bay | 5 | 3 | +2 |
+
+### Trend Summary
+
+The metrics show a concerning shift toward disorder and internal stress. Project chaos has doubled (+4) along with a significant spike in anxiety (+4), while self-development time has been cut in half (-3). Though external pressures like unmet requests and outside stress have decreased, the internal work environment has become substantially more chaotic and anxiety-inducing.
+
+### Reflex Actions
+
+**IMMEDIATE ACTIONS REQUIRED:**
+- **Sleep Recovery Plan** - Sleep quality remains critically low (≤4)
+- **Anti-Chaos Routine** including Pull-Request Chaos Protocol - Project chaos has reached 6 (≥6 threshold)
+- **Self-Authorization Rule** - Jira autonomy at 4 (≤4 threshold)  
+- **Daily Deep-Work Anchor** - Quiet work blocks at 2 (≤3 threshold)
+
+**DELIVERY LOG RECOMMENDED:**
+Given that Project Chaos (6) and Anxiety (7) are both ≥6, recommend using delivery_log.md to track and manage workload systematically.
+
+### CSV Row
+
+2025-01-02,4,3,6,3,4,6,3,7,3,3,2,3,yes,2,3,5

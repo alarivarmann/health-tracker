@@ -1,0 +1,56 @@
+#!/bin/bash
+# Generate CORRECT PROD schedule plist
+# Handles: scheduled times + wake from sleep
+
+cat > ~/Library/LaunchAgents/com.metricsTracker.prod.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.metricsTracker.prod</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/alavar/metrics-tracker/scripts/smart_notify.sh</string>
+    </array>
+    
+    <!-- Run on schedule: Tuesdays & Thursdays at 10:30 -->
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict>
+            <key>Weekday</key>
+            <integer>2</integer>
+            <key>Hour</key>
+            <integer>10</integer>
+            <key>Minute</key>
+            <integer>30</integer>
+        </dict>
+        <dict>
+            <key>Weekday</key>
+            <integer>4</integer>
+            <key>Hour</key>
+            <integer>10</integer>
+            <key>Minute</key>
+            <integer>30</integer>
+        </dict>
+    </array>
+    
+    <!-- CRITICAL: Run on boot/wake to catch missed schedules -->
+    <key>RunAtLoad</key>
+    <true/>
+    
+    <key>WorkingDirectory</key>
+    <string>/Users/alavar/metrics-tracker</string>
+    
+    <key>StandardOutPath</key>
+    <string>/Users/alavar/metrics-tracker/logs/notify_prod.log</string>
+    
+    <key>StandardErrorPath</key>
+    <string>/Users/alavar/metrics-tracker/logs/notify_prod.error.log</string>
+</dict>
+</plist>
+EOF
+
+echo "✅ Created PROD plist (with wake-from-sleep support)"

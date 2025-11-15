@@ -1,0 +1,71 @@
+#!/bin/bash
+# Smart notification script - only runs on scheduled days if not already run today
+
+LOG_FILE="$HOME/metrics-tracker/notify_prod.log"
+LAST_RUN_FILE="$HOME/metrics-tracker/.last_prod_run"
+
+echo "[$(date)] ========================================" >> "$LOG_FILE"
+echo "[$(date)] smart_notify.sh started" >> "$LOG_FILE"
+
+# Get current day and time
+CURRENT_DAY=$(date +%u)  # 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 7=Sun
+CURRENT_HOUR=$(date +%H)
+CURRENT_MINUTE=$(date +%M)
+CURRENT_DATE=$(date +%Y-%m-%d)
+
+echo "[$(date)] Current: Day=$CURRENT_DAY ($(date +%A)), Time=$CURRENT_HOUR:$CURRENT_MINUTE" >> "$LOG_FILE"
+
+# Check if we already ran today
+if [ -f "$LAST_RUN_FILE" ]; then
+    LAST_RUN_DATE=$(cat "$LAST_RUN_FILE")
+    echo "[$(date)] Last run was: $LAST_RUN_DATE" >> "$LOG_FILE"
+    
+    if [ "$LAST_RUN_DATE" == "$CURRENT_DATE" ]; then
+        echo "[$(date)] Already ran today. Skipping." >> "$LOG_FILE"
+        exit 0
+    fi
+fi
+
+# Check if today is a scheduled day (Tuesday=2 or Thursday=4)
+SHOULD_RUN=false
+
+if [ "$CURRENT_DAY" -eq 2 ] || [ "$CURRENT_DAY" -eq 4 ]; then
+    # It's a scheduled day
+    # Check if we're past the scheduled time (10:30)
+    if [ "$CURRENT_HOUR" -gt 10 ] || ([ "$CURRENT_HOUR" -eq 10 ] && [ "$CURRENT_MINUTE" -ge 30 ]); then
+        SHOULD_RUN=true
+        echo "[$(date)] ✅ Scheduled day + past 10:30 → RUNNING" >> "$LOG_FILE"
+    else
+        echo "[$(date)] ⏰ Scheduled day but before 10:30 → SKIPPING" >> "$LOG_FILE"
+    fi
+else
+    echo "[$(date)] ⏭️  Not a scheduled day → SKIPPING" >> "$LOG_FILE"
+fi
+
+if [ "$SHOULD_RUN" = false ]; then
+    exit 0
+fi
+
+# === RUN THE NOTIFICATION ===
+echo "[$(date)] 🚀 Running notification..." >> "$LOG_FILE"
+
+# Send notification
+osascript -e 'display notification "⏰ Time to fill in your metrics!" with title "📊 Metrics Tracker" sound name "Glass"'
+echo "[$(date)] ✅ Notification sent" >> "$LOG_FILE"
+
+sleep 1
+
+# Check if Streamlit is running and open browser
+if curl -s http://localhost:8501 > /dev/null 2>&1; then
+    echo "[$(date)] ✅ Streamlit is running, opening browser" >> "$LOG_FILE"
+    open "http://localhost:8501"
+    echo "[$(date)] ✅ Browser opened" >> "$LOG_FILE"
+else
+    echo "[$(date)] ⚠️  Streamlit NOT running at localhost:8501" >> "$LOG_FILE"
+    osascript -e 'display notification "Streamlit is not running! Start it first." with title "❌ Metrics Tracker Error" sound name "Basso"'
+fi
+
+# Record that we ran today
+echo "$CURRENT_DATE" > "$LAST_RUN_FILE"
+echo "[$(date)] ✅ Recorded run date: $CURRENT_DATE" >> "$LOG_FILE"
+echo "[$(date)] smart_notify.sh finished" >> "$LOG_FILE"

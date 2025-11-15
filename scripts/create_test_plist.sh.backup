@@ -1,0 +1,36 @@
+#!/bin/bash
+# Generate TEST schedule plist
+
+cat > ~/Library/LaunchAgents/com.metricsTracker.test.plist << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.metricsTracker.test</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/alavar/metrics-tracker/scripts/smart_notify.sh</string>
+    </array>
+    
+    <key>StartInterval</key>
+    <integer>180</integer>
+    
+    <key>WorkingDirectory</key>
+    <string>/Users/alavar/metrics-tracker</string>
+    
+    <key>StandardOutPath</key>
+    <string>/Users/alavar/metrics-tracker/logs/notify_test.log</string>
+    
+    <key>StandardErrorPath</key>
+    <string>/Users/alavar/metrics-tracker/logs/notify_test.error.log</string>
+    
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>
+EOF
+
+echo "✅ Created TEST plist"
