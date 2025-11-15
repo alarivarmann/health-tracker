@@ -192,7 +192,7 @@ schedule-status:
 		if [ -f $(PROD_PLIST) ]; then \
 			echo "   Configured times:"; \
 			plutil -convert json -o /tmp/metrics_schedule.json $(PROD_PLIST) 2>/dev/null; \
-			python3 -c "import json; data = json.load(open('/tmp/metrics_schedule.json')); intervals = data.get('StartCalendarInterval', []); days = {1:'Mon', 2:'Tue', 3:'Wed', 4:'Thu', 5:'Fri', 6:'Sat', 7:'Sun'}; [print(f\"     • {days[i['Weekday']]} at {i['Hour']:02d}:{i['Minute']:02d}\") for i in intervals]"; \
+			python3 -c "import json; data = json.load(open('/tmp/metrics_schedule.json')); intervals = data.get('StartCalendarInterval', []); days = {1:'Mon', 2:'Tue', 3:'Wed', 4:'Thu', 5:'Fri', 6:'Sat', 7:'Sun'}; [print(f\"     • {days.get(i.get('Weekday', 0), 'Daily')} at {i.get('Hour', 0):02d}:{i.get('Minute', 0):02d}\") if 'Weekday' in i else print(f\"     • Daily at {i.get('Hour', 0):02d}:{i.get('Minute', 0):02d}\") for i in intervals]" 2>/dev/null || echo "     • $$(plutil -extract StartCalendarInterval json -o - $(PROD_PLIST) 2>/dev/null | grep -E 'Hour|Minute' | tr -d ' ' | paste -sd ' ' - || echo 'Schedule configured')"; \
 			rm -f /tmp/metrics_schedule.json; \
 		fi; \
 		if [ -f $(LAST_RUN_FILE) ]; then \
