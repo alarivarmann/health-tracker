@@ -28,7 +28,7 @@ THRESHOLDS = {
     'anxiety_medium': int(os.getenv('ANXIETY_MEDIUM', 5)),
     'irritability_high': int(os.getenv('IRRITABILITY_HIGH', 7)),
     'stress_outside_high': int(os.getenv('STRESS_OUTSIDE_HIGH', 7)),
-    'not_keeping_moses_high': int(os.getenv('NOT_KEEPING_MOSES_HIGH', 7)),  # RENAMED: was keeping_moses_high
+    'no_ownership_high': int(os.getenv('NO_OWNERSHIP_HIGH', 7)),  # No ownership (even self-development)
     'sleep_issues_high': int(os.getenv('SLEEP_ISSUES_HIGH', 7)),  # INVERTED: was sleep_quality_poor
     'quiet_blocks_insufficient_high': int(os.getenv('QUIET_BLOCKS_INSUFFICIENT_HIGH', 7)),  # INVERTED: was quiet_blocks_low
     'cannot_say_no_high': int(os.getenv('CANNOT_SAY_NO_HIGH', 7)),  # INVERTED: was saying_no_low
@@ -63,5 +63,5 @@ QUESTIONS = [
     {'key': 'new_horizon', 'label': 'New project horizon emerging?', 'category': 'individual', 'type': 'yesno'},
     {'key': 'quiet_blocks_insufficient', 'label': 'Insufficient quiet work blocks', 'category': 'individual'},
     {'key': 'cannot_say_no', 'label': 'Cannot say no to unwanted requests', 'category': 'individual'},
-    {'key': 'not_keeping_moses', 'label': 'Not keeping Moses at bay', 'category': 'individual'}
+    {'key': 'no_ownership', 'label': 'No Ownership (even self-development)', 'category': 'individual'}
 ]

@@ -30,8 +30,8 @@ def generate_quick_insights(metrics, previous, custom_thresholds=None):
         insights.append(('medium', f"⚡ Many unwanted meetings ({metrics['unwanted_meetings']}/10). Use skip-meeting template."))
     
     # INVERTED metrics (now follow "high = worse" pattern like all others)
-    if metrics.get('not_keeping_moses') and metrics['not_keeping_moses'] >= thresholds.get('not_keeping_moses_high', 7):
-        insights.append(('medium', f"⚡ Struggling to keep Moses at bay ({metrics['not_keeping_moses']}/10). Address root causes."))
+    if metrics.get('no_ownership') and metrics['no_ownership'] >= thresholds.get('no_ownership_high', 7):
+        insights.append(('medium', f"⚡ Lacking ownership ({metrics['no_ownership']}/10). Address root causes and reclaim control."))
     if metrics.get('sleep_issues') and metrics['sleep_issues'] >= thresholds.get('sleep_issues_high', 7):
         insights.append(('high', f"⚠️ Significant sleep issues ({metrics['sleep_issues']}/10). Review Sleep Recovery Plan."))
     if metrics.get('jira_blocked') and metrics['jira_blocked'] >= thresholds.get('jira_blocked_high', 7):

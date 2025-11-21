@@ -70,7 +70,7 @@ def main():
             'unmet_requests_high': THRESHOLDS['unmet_requests_high'],
             'stress_outside_high': THRESHOLDS['stress_outside_high'],
             'jira_blocked_high': THRESHOLDS['jira_blocked_high'],
-            'not_keeping_moses_high': THRESHOLDS['not_keeping_moses_high'],
+            'no_ownership_high': THRESHOLDS['no_ownership_high'],
             'urgent_alignment_high': THRESHOLDS['urgent_alignment_high'],
             'self_development_unrealized_high': THRESHOLDS['self_development_unrealized_high'],
             'deadline_pressure_high': THRESHOLDS['deadline_pressure_high'],
@@ -198,7 +198,7 @@ def show_configuration_tab():
                 'unmet_requests_high': THRESHOLDS['unmet_requests_high'],
                 'stress_outside_high': THRESHOLDS['stress_outside_high'],
                 'jira_blocked_high': THRESHOLDS['jira_blocked_high'],
-                'not_keeping_moses_high': THRESHOLDS['not_keeping_moses_high'],
+                'no_ownership_high': THRESHOLDS['no_ownership_high'],
                 'urgent_alignment_high': THRESHOLDS['urgent_alignment_high'],
                 'self_development_unrealized_high': THRESHOLDS['self_development_unrealized_high'],
                 'deadline_pressure_high': THRESHOLDS['deadline_pressure_high'],
@@ -332,11 +332,11 @@ def show_configuration_tab():
             st.session_state.config_thresholds['cannot_say_no_high'],
             key="cannot_say_no_high_slider"
         )
-        st.session_state.config_thresholds['not_keeping_moses_high'] = st.slider(
-            "Not Keeping Moses (High)",
+        st.session_state.config_thresholds['no_ownership_high'] = st.slider(
+            "No Ownership (High)",
             1, 10,
-            st.session_state.config_thresholds['not_keeping_moses_high'],
-            key="not_keeping_moses_high_slider"
+            st.session_state.config_thresholds['no_ownership_high'],
+            key="no_ownership_high_slider"
         )
         st.session_state.config_thresholds['self_development_unrealized_high'] = st.slider(
             "Self-Development Unrealized (High)",
@@ -414,7 +414,7 @@ def show_configuration_tab():
     - `UNMET_REQUESTS_HIGH`
     - `STRESS_OUTSIDE_HIGH`
     - `JIRA_BLOCKED_HIGH`
-    - `NOT_KEEPING_MOSES_HIGH`
+    - `NO_OWNERSHIP_HIGH`
     - `SELF_DEVELOPMENT_UNREALIZED_HIGH`
     - `URGENT_ALIGNMENT_HIGH`
     - `DEADLINE_PRESSURE_HIGH`
@@ -673,11 +673,7 @@ def show_analysis_tab():
         if severity_increase_issues:
             with st.expander(f"🚨 Problem Severity Increase ({len(severity_increase_issues)})", expanded=True):
                 for score, detail in severity_increase_issues:  # Show ALL, not just 5
-                    # Safely format previous value
-                    try:
-                        prev_text = f"{float(detail['previous']):.1f}" if detail['previous'] is not None else "N/A"
-                    except (ValueError, TypeError):
-                        prev_text = "N/A"
+                    prev_text = f"{detail['previous']:.1f}" if detail['previous'] is not None else "N/A"
                     delta_text = f"+{detail['delta']:.1f}" if detail['delta'] > 0 else f"{detail['delta']:.1f}"
                     
                     st.markdown(f"""
@@ -693,11 +689,7 @@ def show_analysis_tab():
         if continuous_issues:
             with st.expander(f"⚠️ Continuous Issues ({len(continuous_issues)})", expanded=True):  # Changed to expanded=True
                 for score, detail in continuous_issues:  # Show ALL, not just 5
-                    # Safely format previous value
-                    try:
-                        prev_text = f"{float(detail['previous']):.1f}" if detail['previous'] is not None else "N/A"
-                    except (ValueError, TypeError):
-                        prev_text = "N/A"
+                    prev_text = f"{detail['previous']:.1f}" if detail['previous'] is not None else "N/A"
                     
                     st.markdown(f"""
                     <div style="background: #fff9e6; padding: 12px; border-radius: 6px; margin-bottom: 8px; border-left: 4px solid #f39c12;">
@@ -711,11 +703,7 @@ def show_analysis_tab():
         if safe_metrics:
             with st.expander(f"✅ Safe Zone ({len(safe_metrics)})", expanded=False):
                 for score, detail in safe_metrics:  # Show ALL safe metrics, not just 5
-                    # Safely format previous value
-                    try:
-                        prev_text = f"{float(detail['previous']):.1f}" if detail['previous'] is not None else "N/A"
-                    except (ValueError, TypeError):
-                        prev_text = "N/A"
+                    prev_text = f"{detail['previous']:.1f}" if detail['previous'] is not None else "N/A"
                     delta_text = f"+{detail['delta']:.1f}" if detail['delta'] > 0 else f"{detail['delta']:.1f}"
                     
                     st.markdown(f"""
