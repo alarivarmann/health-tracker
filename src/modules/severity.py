@@ -2,6 +2,8 @@
 Severity classifier - mechanical rules to identify critical issues
 Inspired by statistical anomaly detection patterns
 """
+import math
+
 from .config import THRESHOLDS
 
 # Severity classification constants
@@ -39,32 +41,40 @@ def classify_metric_severity(current_value, previous_value, metric_key, metric_l
     # Handle None/missing values
     if current_value is None:
         return 'safe', 0, None
-    
-    current = float(current_value)
-    
+
+    try:
+        current = float(current_value)
+    except (ValueError, TypeError):
+        return 'safe', 0, None
+
+    if math.isnan(current):
+        return 'safe', 0, None
+
     # Calculate delta and normalize previous value
+    previous = None
+    delta = 0.0
+
     if previous_value is not None:
         try:
-            previous = float(previous_value)
-            delta = current - previous
+            previous_candidate = float(previous_value)
+            if not math.isnan(previous_candidate):
+                previous = previous_candidate
+                delta = current - previous
         except (ValueError, TypeError):
             previous = None
-            delta = 0
-    else:
-        previous = None
-        delta = 0
+            delta = 0.0
     
     # Classification logic
     is_high = current >= prob_thresh
-    is_rising = delta >= incr_thresh
-    is_stable = abs(delta) < incr_thresh
+    is_rising = delta >= incr_thresh if previous is not None else False
+    is_stable = abs(delta) < incr_thresh if previous is not None else False
     
     detail = {
         'key': metric_key,
         'label': metric_label,
         'current': current,
-        'previous': previous,  # Now always None or float
-        'delta': delta,
+        'previous': previous,
+        'delta': delta if previous is not None else None,
         'is_high': is_high,
         'is_rising': is_rising
     }
@@ -82,7 +92,7 @@ def classify_metric_severity(current_value, previous_value, metric_key, metric_l
         return 'continuous_issue', severity_score, detail
     
     # Rule 2b: First-time high value (treat as continuous issue)
-    if is_high and previous_value is None:
+    if is_high and previous is None:
         severity_score = current * 5
         return 'continuous_issue', severity_score, detail
     
@@ -91,7 +101,7 @@ def classify_metric_severity(current_value, previous_value, metric_key, metric_l
     return 'safe', 0, detail
 
 
-def analyze_metrics_severity(metrics, previous, problem_threshold=None, increase_threshold=None):
+def analyze_metrics_severity(metrics, previous, problem_threshold=None, increase_threshold=None, custom_thresholds=None):
     """
     Analyze all metrics and classify them into severity categories.
     
@@ -108,6 +118,7 @@ def analyze_metrics_severity(metrics, previous, problem_threshold=None, increase
         - 'safe': list of (severity_score, detail_dict)
     """
     from .config import QUESTIONS
+    thresholds_map = custom_thresholds if custom_thresholds is not None else THRESHOLDS
     
     results = {
         'severity_increase': [],
@@ -128,12 +139,17 @@ def analyze_metrics_severity(metrics, previous, problem_threshold=None, increase
         
         previous_value = previous.get(key) if previous else None
         
+        threshold_key = f"{key}_high"
+        metric_threshold = None
+        if threshold_key in thresholds_map:
+            metric_threshold = thresholds_map.get(threshold_key)
+
         category, severity_score, detail = classify_metric_severity(
             current_value, 
             previous_value, 
             key, 
             metric_labels.get(key, key),
-            problem_threshold=problem_threshold,
+            problem_threshold=metric_threshold if metric_threshold is not None else problem_threshold,
             increase_threshold=increase_threshold
         )
         

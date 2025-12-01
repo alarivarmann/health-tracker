@@ -9,7 +9,27 @@ def generate_quick_insights(metrics, previous, custom_thresholds=None):
     
     insights = []
     
-    # ALL metrics now follow "high values = problems" pattern
+    # ADHD radar (required metrics, 0-10 scale)
+    if metrics.get('signal_body_tension') is not None and metrics['signal_body_tension'] >= thresholds.get('signal_body_tension_high', 7):
+        insights.append(('high', f"⚠️ Body tension rising ({metrics['signal_body_tension']}/10). Schedule a short somatic reset (stretch, breathe)."))
+    if metrics.get('signal_mind_noise') is not None and metrics['signal_mind_noise'] >= thresholds.get('signal_mind_noise_high', 7):
+        insights.append(('high', f"⚠️ Mind noise is loud ({metrics['signal_mind_noise']}/10). Capture intrusive thoughts and regroup."))
+    if metrics.get('signal_focus_friction') is not None and metrics['signal_focus_friction'] >= thresholds.get('signal_focus_friction_high', 7):
+        insights.append(('high', f"⚠️ Focus friction high ({metrics['signal_focus_friction']}/10). Try a 5-minute single-task warmup."))
+    if metrics.get('signal_emotion_wave') is not None and metrics['signal_emotion_wave'] >= thresholds.get('signal_emotion_wave_high', 7):
+        insights.append(('medium', f"⚡ Emotional spikes ({metrics['signal_emotion_wave']}/10). Name the emotion and slow the pace."))
+    if metrics.get('signal_energy_drain') is not None and metrics['signal_energy_drain'] >= thresholds.get('signal_energy_drain_high', 7):
+        insights.append(('high', f"⚠️ Battery low ({metrics['signal_energy_drain']}/10). Block a recovery break before continuing."))
+
+    # ADHD fast flags (binary)
+    if metrics.get('flag_rushing_loop') is not None and metrics['flag_rushing_loop'] >= thresholds.get('flag_rushing_loop_high', 1):
+        insights.append(('high', "⚠️ You're in a rushing loop. Pause, reset priorities, and slow execution."))
+    if metrics.get('flag_skipped_reset') is not None and metrics['flag_skipped_reset'] >= thresholds.get('flag_skipped_reset_high', 1):
+        insights.append(('medium', "⚡ Reset skipped. Take the five-minute pause before momentum slips."))
+    if metrics.get('flag_people_pleasing') is not None and metrics['flag_people_pleasing'] >= thresholds.get('flag_people_pleasing_high', 1):
+        insights.append(('medium', "⚡ Said yes while overloaded. Revisit commitments and renegotiate if needed."))
+
+    # Legacy individual/work metrics (all follow "high values = problems")
     if metrics.get('anxiety') and metrics['anxiety'] >= thresholds.get('anxiety_high', 7):
         insights.append(('high', f"⚠️ High anxiety ({metrics['anxiety']}/10). Use nVNS + 10 min walk."))
     if metrics.get('project_chaos') and metrics['project_chaos'] >= thresholds.get('project_chaos_high', 7):
@@ -59,7 +79,7 @@ def generate_quick_insights(metrics, previous, custom_thresholds=None):
             except:
                 pass
     if not insights:
-        insights.append(('low', '✅ All metrics within healthy ranges. Keep it up!'))
+        insights.append(('low', '✅ ADHD radar and optional metrics all within healthy ranges. Keep this cadence!'))
     return insights
 
 def should_recommend_delivery_log(metrics, custom_thresholds=None):
@@ -69,6 +89,9 @@ def should_recommend_delivery_log(metrics, custom_thresholds=None):
     
     triggered = []
     check_metrics = [
+        ('signal_body_tension', 'Body tension'),
+        ('signal_mind_noise', 'Mind noise'),
+        ('signal_focus_friction', 'Focus friction'),
         ('deadline_pressure', 'Urgent deadline pressure'),
         ('unmet_requests', 'Unmet requests'),
         ('project_chaos', 'Project chaos'),
@@ -77,6 +100,9 @@ def should_recommend_delivery_log(metrics, custom_thresholds=None):
         ('irritability', 'Irritability')
     ]
     for key, label in check_metrics:
-        if metrics.get(key) and metrics[key] >= delivery_threshold:
-            triggered.append(f"{label} ({metrics[key]}/10)")
+        threshold_override = thresholds.get(f"{key}_high", delivery_threshold)
+        value = metrics.get(key)
+        if value is not None and value >= threshold_override:
+            suffix = '/10'
+            triggered.append(f"{label} ({value}{suffix})")
     return len(triggered) > 0, triggered

@@ -4,6 +4,7 @@ Metrics Tracker - Main Streamlit App (Modular Version)
 Uses story-based narratives with feedback loop
 """
 
+import math
 import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
@@ -44,10 +45,6 @@ st.markdown("""
 def main():
     st.title("📊 Work & Individual Metrics Tracker")
     
-    # Initialize session state for checkboxes
-    if 'checkboxes' not in st.session_state:
-        st.session_state.checkboxes = {q['key']: True for q in QUESTIONS}
-    
     # Initialize session state for thresholds (from .env as defaults)
     if 'config_thresholds' not in st.session_state:
         from modules.config import THRESHOLDS, ANTHROPIC_API_KEY
@@ -59,6 +56,14 @@ def main():
             'claude_model': 'claude-3-5-haiku-20241022',  # Default to cheapest model
             'problem_threshold': 6,
             'increase_threshold': 1.0,
+            'signal_body_tension_high': THRESHOLDS.get('signal_body_tension_high', 3),
+            'signal_mind_noise_high': THRESHOLDS.get('signal_mind_noise_high', 3),
+            'signal_focus_friction_high': THRESHOLDS.get('signal_focus_friction_high', 3),
+            'signal_emotion_wave_high': THRESHOLDS.get('signal_emotion_wave_high', 3),
+            'signal_energy_drain_high': THRESHOLDS.get('signal_energy_drain_high', 3),
+            'flag_rushing_loop_high': THRESHOLDS.get('flag_rushing_loop_high', 1),
+            'flag_skipped_reset_high': THRESHOLDS.get('flag_skipped_reset_high', 1),
+            'flag_people_pleasing_high': THRESHOLDS.get('flag_people_pleasing_high', 1),
             'anxiety_high': THRESHOLDS.get('anxiety_high', 7),
             'anxiety_medium': THRESHOLDS.get('anxiety_medium', 5),
             'irritability_high': THRESHOLDS.get('irritability_high', 7),
@@ -80,23 +85,29 @@ def main():
     # Check if input needed
     needs_prompt, reason = should_prompt_today()
     
-    # Tab navigation
-    tab0, tab1, tab2, tab3, tab4 = st.tabs(["⚙️ Configuration", "📝 New Entry", "📊 Dashboard", "📖 Analysis", "ℹ️ About"])
-    
-    with tab0:
-        show_configuration_tab()
-    
-    with tab1:
+    # Tab navigation (New Entry first, Configuration last)
+    tab_entry, tab_dashboard, tab_analysis, tab_about, tab_config = st.tabs([
+        "📝 New Entry",
+        "📊 Dashboard",
+        "📖 Analysis",
+        "ℹ️ About",
+        "⚙️ Configuration"
+    ])
+
+    with tab_entry:
         show_input_tab(needs_prompt)
-    
-    with tab2:
+
+    with tab_dashboard:
         show_dashboard_tab()
-    
-    with tab3:
+
+    with tab_analysis:
         show_analysis_tab()
-    
-    with tab4:
+
+    with tab_about:
         show_about_tab()
+
+    with tab_config:
+        show_configuration_tab()
 
 def show_configuration_tab():
     """Configuration Tab - Adjust thresholds in real-time"""
@@ -187,6 +198,14 @@ def show_configuration_tab():
                 'claude_model': 'claude-3-5-haiku-20241022',
                 'problem_threshold': 6,
                 'increase_threshold': 1.0,
+                'signal_body_tension_high': THRESHOLDS.get('signal_body_tension_high', 3),
+                'signal_mind_noise_high': THRESHOLDS.get('signal_mind_noise_high', 3),
+                'signal_focus_friction_high': THRESHOLDS.get('signal_focus_friction_high', 3),
+                'signal_emotion_wave_high': THRESHOLDS.get('signal_emotion_wave_high', 3),
+                'signal_energy_drain_high': THRESHOLDS.get('signal_energy_drain_high', 3),
+                'flag_rushing_loop_high': THRESHOLDS.get('flag_rushing_loop_high', 1),
+                'flag_skipped_reset_high': THRESHOLDS.get('flag_skipped_reset_high', 1),
+                'flag_people_pleasing_high': THRESHOLDS.get('flag_people_pleasing_high', 1),
                 'anxiety_high': THRESHOLDS.get('anxiety_high', 7),
                 'anxiety_medium': THRESHOLDS.get('anxiety_medium', 5),
                 'irritability_high': THRESHOLDS.get('irritability_high', 7),
@@ -243,9 +262,79 @@ def show_configuration_tab():
     # Alert Thresholds
     st.subheader("🚨 Alert Thresholds")
     st.markdown("**Individual metric thresholds** for quick alerts (adjust with sliders):")
-    
+
+    st.markdown("**ADHD Radar (0 = calm · 10 = red alert)**")
+    adhd_col_left, adhd_col_right = st.columns(2)
+
+    with adhd_col_left:
+        st.session_state.config_thresholds['signal_body_tension_high'] = st.slider(
+            "Body tension trigger",
+            0, 10,
+            st.session_state.config_thresholds['signal_body_tension_high'],
+            key="signal_body_tension_high_slider"
+        )
+        st.session_state.config_thresholds['signal_focus_friction_high'] = st.slider(
+            "Focus friction trigger",
+            0, 10,
+            st.session_state.config_thresholds['signal_focus_friction_high'],
+            key="signal_focus_friction_high_slider"
+        )
+        st.session_state.config_thresholds['signal_energy_drain_high'] = st.slider(
+            "Energy drain trigger",
+            0, 10,
+            st.session_state.config_thresholds['signal_energy_drain_high'],
+            key="signal_energy_drain_high_slider"
+        )
+
+    with adhd_col_right:
+        st.session_state.config_thresholds['signal_mind_noise_high'] = st.slider(
+            "Mind noise trigger",
+            0, 10,
+            st.session_state.config_thresholds['signal_mind_noise_high'],
+            key="signal_mind_noise_high_slider"
+        )
+        st.session_state.config_thresholds['signal_emotion_wave_high'] = st.slider(
+            "Emotion swell trigger",
+            0, 10,
+            st.session_state.config_thresholds['signal_emotion_wave_high'],
+            key="signal_emotion_wave_high_slider"
+        )
+
+        def toggle_flag_threshold(session_key: str, label: str) -> int:
+            current_value = st.session_state.config_thresholds[session_key]
+            options = [
+                (0, "Ignore flag (>= 0)"),
+                (1, "Trigger when marked 'Yes' (>= 1)")
+            ]
+            option_values = [opt[0] for opt in options]
+            option_labels = [opt[1] for opt in options]
+            selected_index = option_values.index(current_value) if current_value in option_values else 1
+            selection_label = st.selectbox(
+                label,
+                options=option_labels,
+                index=selected_index,
+                key=f"{session_key}_select"
+            )
+            selected_value = option_values[option_labels.index(selection_label)]
+            return int(selected_value)
+
+        st.session_state.config_thresholds['flag_rushing_loop_high'] = toggle_flag_threshold(
+            'flag_rushing_loop_high',
+            "Rushing loop triggers when"
+        )
+        st.session_state.config_thresholds['flag_skipped_reset_high'] = toggle_flag_threshold(
+            'flag_skipped_reset_high',
+            "Skipped reset triggers when"
+        )
+        st.session_state.config_thresholds['flag_people_pleasing_high'] = toggle_flag_threshold(
+            'flag_people_pleasing_high',
+            "People-pleasing triggers when"
+        )
+
+    st.markdown("---")
+
     col1, col2, col3 = st.columns(3)
-    
+
     with col1:
         st.markdown("**Work Metrics**")
         st.session_state.config_thresholds['project_chaos_high'] = st.slider(
@@ -284,7 +373,7 @@ def show_configuration_tab():
             st.session_state.config_thresholds['apologies_high'],
             key="apologies_high_slider"
         )
-    
+
     with col2:
         st.markdown("**Well-being Metrics**")
         st.session_state.config_thresholds['anxiety_high'] = st.slider(
@@ -311,7 +400,7 @@ def show_configuration_tab():
             st.session_state.config_thresholds['stress_outside_high'],
             key="stress_outside_high_slider"
         )
-    
+
     with col3:
         st.markdown("**Productivity Metrics**")
         st.session_state.config_thresholds['sleep_issues_high'] = st.slider(
@@ -427,112 +516,193 @@ def show_configuration_tab():
 
 def show_input_tab(needs_prompt):
     """New Entry Tab - Form Input"""
-    if needs_prompt:
-        st.markdown('<div class="prompt-banner">🔔 Time for your metrics check-in!</div>', unsafe_allow_html=True)
-    
-    st.header("Input Your Metrics")
-    st.markdown("**Select which metrics to fill** (uncheck to skip)")
-    
     previous = get_previous_entry()
     if previous:
-        st.info(f"📅 Last entry: {previous.get('date', 'Unknown')}")
-    
+        st.sidebar.caption(f"📅 Last entry: {previous.get('date', 'Unknown')}")
+
+    st.header("Daily ADHD Radar & Metrics")
+
     metrics = {'date': datetime.now().strftime('%Y-%m-%d')}
-    
+
+    adhd_primary = [q for q in QUESTIONS if q.get('category') == 'adhd_primary']
+    work_qs = [q for q in QUESTIONS if q.get('category') == 'work']
+    individual_optional = [q for q in QUESTIONS if q.get('category') == 'individual']
+
+    def render_required_question(question, column):
+        help_text = question.get('description')
+        if question.get('type') == 'yesno':
+            previous_value = None
+            if previous and question['key'] in previous and pd.notna(previous[question['key']]):
+                try:
+                    previous_value = int(previous[question['key']])
+                except (ValueError, TypeError):
+                    previous_value = None
+            options = ['-NA', 'No', 'Yes']
+            if previous_value is None:
+                default_index = 0
+            else:
+                default_index = 2 if previous_value == 1 else 1
+            with column:
+                response = st.radio(
+                    question['label'],
+                    options=options,
+                    index=default_index,
+                    horizontal=True,
+                    key=f"{question['key']}_required_yesno"
+                )
+                if help_text:
+                    st.caption(help_text)
+            # Value captured later from session state
+        else:
+            min_val = int(question.get('min', 0))
+            max_val = int(question.get('max', 10))
+            default_value = question.get('default')
+            previous_value = None
+            if previous and question['key'] in previous and pd.notna(previous[question['key']]):
+                try:
+                    previous_value = int(previous[question['key']])
+                except (ValueError, TypeError):
+                    previous_value = None
+            options = ['-NA'] + [str(value) for value in range(min_val, max_val + 1)]
+            default_selection = (
+                str(previous_value)
+                if previous_value is not None and str(previous_value) in options
+                else (
+                    str(int(default_value))
+                    if default_value is not None and str(int(default_value)) in options
+                    else '-NA'
+                )
+            )
+            with column:
+                selection = st.select_slider(
+                    question['label'],
+                    options=options,
+                    value=default_selection,
+                    key=f"{question['key']}_required_slider"
+                )
+                if help_text:
+                    st.caption(help_text)
+            # Value captured later from session state
+
+    def render_optional_slider(question, column):
+        min_val = int(question.get('min', 0))
+        max_val = int(question.get('max', 10))
+        help_text = question.get('description')
+        default_value = question.get('default')
+        previous_value = None
+        if previous and question['key'] in previous and pd.notna(previous[question['key']]):
+            try:
+                previous_value = int(previous[question['key']])
+            except (ValueError, TypeError):
+                previous_value = None
+
+        options = ['-NA'] + [str(value) for value in range(min_val, max_val + 1)]
+        default_selection = (
+            str(previous_value)
+            if previous_value is not None and str(previous_value) in options
+            else (
+                str(int(default_value))
+                if default_value is not None and str(int(default_value)) in options
+                else '-NA'
+            )
+        )
+
+        with column:
+            selection = st.select_slider(
+                question['label'],
+                options=options,
+                value=default_selection,
+                key=f"{question['key']}_optional_slider"
+            )
+            if help_text:
+                st.caption(help_text)
+
+        if selection == '-NA':
+            return None
+        return int(selection)
+
+    def render_optional_yesno(question, column):
+        help_text = question.get('description')
+        with column:
+            previous_value = None
+            if previous and question['key'] in previous and pd.notna(previous[question['key']]):
+                try:
+                    previous_value = int(previous[question['key']])
+                except (ValueError, TypeError):
+                    previous_value = None
+
+            options = ['-NA', 'No', 'Yes']
+            if previous_value is None:
+                default_index = 0
+            else:
+                default_index = 2 if previous_value == 1 else 1
+
+            selection = st.radio(
+                question['label'],
+                options=options,
+                index=default_index,
+                horizontal=True,
+                key=f"{question['key']}_optional_yesno"
+            )
+            if help_text:
+                st.caption(help_text)
+            if selection == '-NA':
+                return None
+            if selection == 'Yes':
+                return 1
+            if selection == 'No':
+                return 0
+        return None
+
     with st.form("metrics_form"):
-        # Work Metrics
-        st.subheader("💼 Work Metrics")
-        work_qs = [q for q in QUESTIONS if q.get('category') == 'work']
-        
-        # Process in pairs for 2-column layout
+        st.subheader("🌟 ADHD Primary Signals (required)")
+        st.caption("These eight checks keep you honest about stress build-up. Complete them before saving.")
+
+        for index in range(0, len(adhd_primary), 2):
+            col_left, col_right = st.columns(2)
+
+            render_required_question(adhd_primary[index], col_left)
+
+            if index + 1 < len(adhd_primary):
+                render_required_question(adhd_primary[index + 1], col_right)
+            else:
+                with col_right:
+                    st.empty()
+
+        st.markdown("---")
+
+        st.subheader("💼 Work Signals (optional)")
         for i in range(0, len(work_qs), 2):
             col_left, col_right = st.columns(2)
-            
-            # Left metric
-            with col_left:
-                q = work_qs[i]
-                col1, col2 = st.columns([0.5, 4])
-                with col1:
-                    enabled = st.checkbox("✓", value=st.session_state.checkboxes.get(q['key'], True), key=f"enable_{q['key']}")
-                    st.session_state.checkboxes[q['key']] = enabled
-                
-                with col2:
-                    if q.get('type') == 'yesno':
-                        val = st.selectbox(q['label'], ['yes', 'no'], key=q['key'], disabled=not enabled)
-                        if enabled:
-                            metrics[q['key']] = 1 if val == 'yes' else 0
-                    else:
-                        val = st.slider(q['label'], 1, 10, 5, key=q['key'], disabled=not enabled)
-                        if enabled:
-                            metrics[q['key']] = val
-            
-            # Right metric (if exists)
+
+            q_left = work_qs[i]
+            result_left = render_optional_slider(q_left, col_left) if q_left.get('type') != 'yesno' else render_optional_yesno(q_left, col_left)
+            if result_left is not None:
+                metrics[q_left['key']] = result_left
+
             if i + 1 < len(work_qs):
-                with col_right:
-                    q = work_qs[i + 1]
-                    col1, col2 = st.columns([0.5, 4])
-                    with col1:
-                        enabled = st.checkbox("✓", value=st.session_state.checkboxes.get(q['key'], True), key=f"enable_{q['key']}")
-                        st.session_state.checkboxes[q['key']] = enabled
-                    
-                    with col2:
-                        if q.get('type') == 'yesno':
-                            val = st.selectbox(q['label'], ['yes', 'no'], key=q['key'], disabled=not enabled)
-                            if enabled:
-                                metrics[q['key']] = 1 if val == 'yes' else 0
-                        else:
-                            val = st.slider(q['label'], 1, 10, 5, key=q['key'], disabled=not enabled)
-                            if enabled:
-                                metrics[q['key']] = val
-        
+                q_right = work_qs[i + 1]
+                result_right = render_optional_slider(q_right, col_right) if q_right.get('type') != 'yesno' else render_optional_yesno(q_right, col_right)
+                if result_right is not None:
+                    metrics[q_right['key']] = result_right
+
         st.markdown("---")
-        
-        # Individual Metrics
-        st.subheader("🧘 Individual Metrics")
-        individual_qs = [q for q in QUESTIONS if q.get('category') == 'individual']
-        
-        # Process in pairs for 2-column layout
-        for i in range(0, len(individual_qs), 2):
+
+        st.subheader("🧘 Additional Wellbeing Signals (optional)")
+        for i in range(0, len(individual_optional), 2):
             col_left, col_right = st.columns(2)
-            
-            # Left metric
-            with col_left:
-                q = individual_qs[i]
-                col1, col2 = st.columns([0.5, 4])
-                with col1:
-                    enabled = st.checkbox("✓", value=st.session_state.checkboxes.get(q['key'], True), key=f"enable_{q['key']}")
-                    st.session_state.checkboxes[q['key']] = enabled
-                
-                with col2:
-                    if q.get('type') == 'yesno':
-                        val = st.selectbox(q['label'], ['yes', 'no'], key=q['key'], disabled=not enabled)
-                        if enabled:
-                            metrics[q['key']] = 1 if val == 'yes' else 0
-                    else:
-                        val = st.slider(q['label'], 1, 10, 5, key=q['key'], disabled=not enabled)
-                        if enabled:
-                            metrics[q['key']] = val
-            
-            # Right metric (if exists)
-            if i + 1 < len(individual_qs):
-                with col_right:
-                    q = individual_qs[i + 1]
-                    col1, col2 = st.columns([0.5, 4])
-                    with col1:
-                        enabled = st.checkbox("✓", value=st.session_state.checkboxes.get(q['key'], True), key=f"enable_{q['key']}")
-                        st.session_state.checkboxes[q['key']] = enabled
-                    
-                    with col2:
-                        if q.get('type') == 'yesno':
-                            val = st.selectbox(q['label'], ['yes', 'no'], key=q['key'], disabled=not enabled)
-                            if enabled:
-                                metrics[q['key']] = 1 if val == 'yes' else 0
-                        else:
-                            val = st.slider(q['label'], 1, 10, 5, key=q['key'], disabled=not enabled)
-                            if enabled:
-                                metrics[q['key']] = val
-        
-        # Free-form context (only visible in AI mode)
+
+            q_left = individual_optional[i]
+            result_left = render_optional_slider(q_left, col_left) if q_left.get('type') != 'yesno' else render_optional_yesno(q_left, col_left)
+            if result_left is not None:
+                metrics[q_left['key']] = result_left
+
+            if i + 1 < len(individual_optional):
+                q_right = individual_optional[i + 1]
+                result_right = render_optional_slider(q_right, col_right) if q_right.get('type') != 'yesno' else render_optional_yesno(q_right, col_right)
+                if result_right is not None:
+                    metrics[q_right['key']] = result_right
+
         current_mode = st.session_state.config_thresholds.get('mode', 'Free')
         if current_mode == 'Claude AI':
             st.markdown("---")
@@ -545,10 +715,47 @@ def show_input_tab(needs_prompt):
             )
             if context and context.strip():
                 metrics['context'] = context.strip()
-        
-        submitted = st.form_submit_button("🚀 Analyze & Save", use_container_width=True)
-        
+
+        submitted = st.form_submit_button(
+            "🚀 Analyze & Save",
+            use_container_width=True
+        )
+
         if submitted:
+            required_missing = []
+            for question in adhd_primary:
+                widget_key = (
+                    f"{question['key']}_required_yesno"
+                    if question.get('type') == 'yesno'
+                    else f"{question['key']}_required_slider"
+                )
+                selection = st.session_state.get(widget_key, '-NA')
+
+                if question.get('type') == 'yesno':
+                    if selection == '-NA':
+                        metrics[question['key']] = None
+                        required_missing.append(question['label'])
+                    else:
+                        metrics[question['key']] = 1 if selection == 'Yes' else 0
+                else:
+                    if selection == '-NA':
+                        metrics[question['key']] = None
+                        required_missing.append(question['label'])
+                    else:
+                        try:
+                            metrics[question['key']] = int(selection)
+                        except (TypeError, ValueError):
+                            metrics[question['key']] = None
+                            required_missing.append(question['label'])
+
+            if required_missing:
+                missing_list = " • ".join(required_missing)
+                st.warning(
+                    "⚠️ Complete all ADHD primary signals before saving:\n" +
+                    " • " + missing_list
+                )
+                return
+
             with st.spinner("🤔 Building your story..."):
                 try:
                     # Calculate changes
@@ -574,10 +781,11 @@ def show_input_tab(needs_prompt):
                         problem_threshold = st.session_state.config_thresholds.get('problem_threshold', 6)
                         increase_threshold = st.session_state.config_thresholds.get('increase_threshold', 1.0)
                         severity_results = analyze_metrics_severity(
-                            metrics, 
+                            metrics,
                             previous,
                             problem_threshold=problem_threshold,
-                            increase_threshold=increase_threshold
+                            increase_threshold=increase_threshold,
+                            custom_thresholds=custom_thresholds
                         )
                     
                     narrative, error = analyze_with_narrative(
@@ -633,6 +841,24 @@ def show_analysis_tab():
     # Get current thresholds from session state
     problem_threshold = st.session_state.config_thresholds['problem_threshold']
     increase_threshold = st.session_state.config_thresholds['increase_threshold']
+
+    from modules.config import THRESHOLDS
+    custom_thresholds = THRESHOLDS.copy()
+    for key, value in st.session_state.config_thresholds.items():
+        if key in custom_thresholds:
+            custom_thresholds[key] = value
+
+    def format_metric_value(value, show_sign=False):
+        if value is None:
+            return "N/A"
+        try:
+            numeric = float(value)
+        except (ValueError, TypeError):
+            return "N/A"
+        if math.isnan(numeric):
+            return "N/A"
+        prefix = "+" if show_sign and numeric > 0 else ""
+        return f"{prefix}{numeric:.1f}"
     
     # Show parameters being used
     st.markdown(f"""
@@ -647,7 +873,8 @@ def show_analysis_tab():
         metrics, 
         previous, 
         problem_threshold=problem_threshold,
-        increase_threshold=increase_threshold
+        increase_threshold=increase_threshold,
+        custom_thresholds=custom_thresholds
     )
     stats = calculate_severity_statistics(severity_results)
     
@@ -673,8 +900,8 @@ def show_analysis_tab():
         if severity_increase_issues:
             with st.expander(f"🚨 Problem Severity Increase ({len(severity_increase_issues)})", expanded=True):
                 for score, detail in severity_increase_issues:  # Show ALL, not just 5
-                    prev_text = f"{detail['previous']:.1f}" if detail['previous'] is not None else "N/A"
-                    delta_text = f"+{detail['delta']:.1f}" if detail['delta'] > 0 else f"{detail['delta']:.1f}"
+                    prev_text = format_metric_value(detail.get('previous'))
+                    delta_text = format_metric_value(detail.get('delta'), show_sign=True)
                     
                     st.markdown(f"""
                     <div style="background: #fee; padding: 12px; border-radius: 6px; margin-bottom: 8px; border-left: 4px solid #e74c3c;">
@@ -689,7 +916,7 @@ def show_analysis_tab():
         if continuous_issues:
             with st.expander(f"⚠️ Continuous Issues ({len(continuous_issues)})", expanded=True):  # Changed to expanded=True
                 for score, detail in continuous_issues:  # Show ALL, not just 5
-                    prev_text = f"{detail['previous']:.1f}" if detail['previous'] is not None else "N/A"
+                    prev_text = format_metric_value(detail.get('previous'))
                     
                     st.markdown(f"""
                     <div style="background: #fff9e6; padding: 12px; border-radius: 6px; margin-bottom: 8px; border-left: 4px solid #f39c12;">
@@ -703,8 +930,8 @@ def show_analysis_tab():
         if safe_metrics:
             with st.expander(f"✅ Safe Zone ({len(safe_metrics)})", expanded=False):
                 for score, detail in safe_metrics:  # Show ALL safe metrics, not just 5
-                    prev_text = f"{detail['previous']:.1f}" if detail['previous'] is not None else "N/A"
-                    delta_text = f"+{detail['delta']:.1f}" if detail['delta'] > 0 else f"{detail['delta']:.1f}"
+                    prev_text = format_metric_value(detail.get('previous'))
+                    delta_text = format_metric_value(detail.get('delta'), show_sign=True)
                     
                     st.markdown(f"""
                     <div style="background: #eafaf1; padding: 10px; border-radius: 6px; margin-bottom: 6px; border-left: 3px solid #2ecc71;">
@@ -785,7 +1012,8 @@ def show_analysis_tab():
                                     entry, 
                                     previous,
                                     problem_threshold=problem_threshold,
-                                    increase_threshold=increase_threshold
+                                    increase_threshold=increase_threshold,
+                                    custom_thresholds=custom_thresholds
                                 )
                             
                             # Regenerate narrative (feedback is already saved and will be included)
@@ -841,32 +1069,28 @@ def show_dashboard_tab():
     df_display = df.tail(n_entries)
     
     # Key Metrics Cards
-    st.markdown("### Key Metrics")
+    st.markdown("### ADHD Radar Snapshot")
     col1, col2, col3, col4 = st.columns(4)
-    
+
     def calc_delta(key):
         if previous is not None and key in previous and key in latest:
             try:
                 return float(latest[key] - previous[key])
-            except:
+            except Exception:
                 return 0
         return 0
-    
-    with col1:
-        if 'anxiety' in latest and pd.notna(latest['anxiety']):
-            st.metric("Anxiety", f"{latest['anxiety']:.1f}", f"{calc_delta('anxiety'):+.1f}", delta_color="inverse")
-    
-    with col2:
-        if 'project_chaos' in latest and pd.notna(latest['project_chaos']):
-            st.metric("Project Chaos", f"{latest['project_chaos']:.1f}", f"{calc_delta('project_chaos'):+.1f}", delta_color="inverse")
-    
-    with col3:
-        if 'sleep_quality' in latest and pd.notna(latest['sleep_quality']):
-            st.metric("Sleep Quality", f"{latest['sleep_quality']:.1f}", f"{calc_delta('sleep_quality'):+.1f}")
-    
-    with col4:
-        if 'quiet_blocks' in latest and pd.notna(latest['quiet_blocks']):
-            st.metric("Quiet Blocks", f"{latest['quiet_blocks']:.1f}", f"{calc_delta('quiet_blocks'):+.1f}")
+
+    def display_radar_metric(column, key, label):
+        with column:
+            if key in latest and pd.notna(latest[key]):
+                current = float(latest[key])
+                delta = calc_delta(key)
+                st.metric(label, f"{current:.0f}/10", f"{delta:+.0f}", delta_color="inverse")
+
+    display_radar_metric(col1, 'signal_body_tension', 'Body tension')
+    display_radar_metric(col2, 'signal_mind_noise', 'Mind noise')
+    display_radar_metric(col3, 'signal_focus_friction', 'Focus friction')
+    display_radar_metric(col4, 'signal_energy_drain', 'Energy drain')
     
     # Charts - Selectable Metrics
     st.markdown("---")
@@ -884,8 +1108,45 @@ def show_dashboard_tab():
             })
     
     # Group by category
+    adhd_metrics = [m for m in available_metrics if m['category'] == 'adhd_primary']
     work_metrics = [m for m in available_metrics if m['category'] == 'work']
     individual_metrics = [m for m in available_metrics if m['category'] == 'individual']
+
+    # ADHD Radar Selection
+    if adhd_metrics:
+        st.markdown("**🌟 ADHD Radar Signals**")
+        adhd_cols = st.columns(4)
+        selected_adhd = []
+        for idx, metric in enumerate(adhd_metrics):
+            with adhd_cols[idx % 4]:
+                if st.checkbox(metric['label'], key=f"chart_adhd_{metric['key']}", value=False):
+                    selected_adhd.append(metric)
+
+        if selected_adhd:
+            fig_adhd = go.Figure()
+            colors = ['#ff8fa3', '#f6bd60', '#84a59d', '#f28482', '#f5cac3', '#b8c0ff']
+
+            for i, metric in enumerate(selected_adhd):
+                fig_adhd.add_trace(go.Scatter(
+                    x=df_display['date'],
+                    y=df_display[metric['key']],
+                    name=metric['label'],
+                    mode='lines+markers',
+                    line=dict(color=colors[i % len(colors)], width=3),
+                    marker=dict(size=8)
+                ))
+
+            fig_adhd.update_layout(
+                height=320,
+                hovermode='x unified',
+                plot_bgcolor='white',
+                paper_bgcolor='white',
+                yaxis=dict(range=[0, 10], title="Score (0-10)"),
+                xaxis=dict(title="Date"),
+                showlegend=True
+            )
+
+            st.plotly_chart(fig_adhd, use_container_width=True)
     
     # Work Metrics Selection
     if work_metrics:
@@ -966,12 +1227,11 @@ def show_dashboard_tab():
     # Use custom thresholds from configuration
     from modules.config import THRESHOLDS
     custom_thresholds = THRESHOLDS.copy()
-    # Apply any user overrides from session state
     if 'config_thresholds' in st.session_state:
         for key, value in st.session_state.config_thresholds.items():
             if key in custom_thresholds:
                 custom_thresholds[key] = value
-    
+
     insights = generate_quick_insights(
         latest.to_dict(), 
         previous.to_dict() if previous is not None else None,
@@ -992,7 +1252,7 @@ def show_about_tab():
     ### 📊 Work & Individual Metrics Tracker
     
     **How it works:**
-    1. **New Entry:** Fill in metrics (selective via checkboxes)
+    1. **New Entry:** Complete the ADHD radar (required) then add any optional context
     2. **AI Narrative:** Claude builds a story connecting your metrics
     3. **Feedback Loop:** Improve future analyses with your context
     4. **Dashboard:** Visualize trends over time
