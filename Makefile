@@ -1,4 +1,5 @@
 .PHONY: start start-fg start-bg stop restart clean flush-data status test
+.PHONY: mobile desktop
 .PHONY: schedule-prod schedule-test schedule-stop-prod schedule-stop-test schedule-status schedule-stop-all
 .PHONY: schedule-sleep-test schedule-restore-after-test
 
@@ -13,6 +14,7 @@ SCRIPTS_DIR := $(PROJECT_ROOT)/scripts
 ARCHIVE_DIR := $(PROJECT_ROOT)/archive/backups
 
 MAIN_APP := $(SRC_DIR)/metrics_app.py
+MOBILE_APP := $(SRC_DIR)/metrics_app_mobile.py
 PREFLIGHT := $(SRC_DIR)/preflight_check.py
 
 METRICS_DATA := $(DATA_DIR)/metrics_data.json
@@ -28,10 +30,22 @@ TEST_PLIST := $(LAUNCH_AGENTS)/com.metricsTracker.test.plist
 
 STREAMLIT_LOG := /tmp/metrics_streamlit.log
 STREAMLIT_URL := http://localhost:8501
+MOBILE_LOG := /tmp/metrics_mobile.log
+MOBILE_URL := http://localhost:8502
 
 # ════════════════════════════════════════════════════════════════
 # APP CONTROL COMMANDS
 # ════════════════════════════════════════════════════════════════
+
+# Quick start mobile app (port 8502)
+mobile:
+	@echo "📱 Starting Mobile App on port 8502..."
+	@export PATH=$$HOME/.local/bin:$$PATH && uv run streamlit run $(MOBILE_APP) --server.port 8502
+
+# Quick start desktop app (port 8501)
+desktop:
+	@echo "🖥️  Starting Desktop App on port 8501..."
+	@export PATH=$$HOME/.local/bin:$$PATH && uv run streamlit run $(MAIN_APP) --server.port 8501
 
 # Pre-flight sanity check
 test:
