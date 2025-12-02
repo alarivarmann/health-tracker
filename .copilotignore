@@ -1,0 +1,50 @@
+# Copilot Ignore - Exclude sensitive files from AI context
+# https://docs.github.com/en/copilot/managing-copilot/managing-github-copilot-in-your-organization/managing-copilot-content-exclusions
+
+# Environment variables (secrets/API keys)
+.env
+.env.*
+*.env
+.streamlit/secrets.toml
+
+# Data files (personal metrics)
+data/*.csv
+data/*.json
+*.csv
+*.json
+narratives.json
+
+# Logs (may contain sensitive info)
+*.log
+logs/
+
+# Private archives
+archive/
+private/
+
+# Git files
+.git/
+.gitignore
+
+# Credentials
+credentials.json
+token.json
+*_credentials.json
+*_token.json
+
+# SSH keys
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+
+# Cloud provider configs
+.aws/
+.azure/
+gcloud/
+
+# Database dumps
+*.sql
+*.db
+*.sqlite
+*.sqlite3
