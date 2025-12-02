@@ -165,18 +165,29 @@ def get_recent_narratives(n=3):
 def build_context_prompt(metrics, previous, changes):
     """Build prompt using OFFICIAL YAML instructions"""
     recent_narratives = get_recent_narratives(3)
-    
+
+    # Locate the most recent piece of user feedback (if any)
+    latest_feedback_entry = next(
+        (narr for narr in reversed(recent_narratives) if narr.get('feedback')),
+        None
+    )
+
     # Extract free-form context if provided
     user_context = metrics.get('context', None)
-    
+
     prompt = "# Work & Individual Metrics Analysis\n\n"
-    
-    # Add user's free-form context prominently at the top if provided
+
+    # Surface the latest feedback as an overriding directive
+    if latest_feedback_entry and latest_feedback_entry.get('feedback'):
+        prompt += "## Immediate User Directive (Overrides Template)\n"
+        prompt += "**You must answer this directive directly before following any other instructions.**\n\n"
+        prompt += f"> {latest_feedback_entry['feedback']}\n\n"
+
+    # Add user's free-form context prominently just below the directive if provided
     if user_context:
         prompt += "## User's Additional Context\n"
-        prompt += f"**Important:** The user provided this context about their current situation:\n\n"
+        prompt += "**Use this situational context to interpret the metrics and frame your story.**\n\n"
         prompt += f"> {user_context}\n\n"
-        prompt += "**Please incorporate this context prominently into your narrative and use it to better interpret the metrics below.**\n\n"
     
     prompt += "## Current Metrics\n"
     for key, value in metrics.items():
@@ -229,12 +240,22 @@ def build_context_prompt(metrics, previous, changes):
             for item in stable:
                 prompt += f"- {item}\n"
     
-    if recent_narratives:
-        prompt += "\n## Previous Feedback from User\n"
-        for narr in recent_narratives:
-            if narr.get('feedback'):
-                prompt += f"{narr['date']}: {narr['feedback']}\n"
+    historical_feedback = [
+        narr for narr in recent_narratives
+        if narr.get('feedback') and narr != latest_feedback_entry
+    ]
+
+    if historical_feedback:
+        prompt += "\n## Earlier User Feedback (Reference Only)\n"
+        prompt += "Use these prior comments for background context after you fully satisfy the immediate directive.\n"
+        for narr in historical_feedback:
+            prompt += f"{narr['date']}: {narr['feedback']}\n"
     
+    prompt += "\n## Priority Rules You Must Follow\n"
+    prompt += "1. If an \"Immediate User Directive\" appears above, answer it explicitly and confirm how your story addresses it before doing anything else.\n"
+    prompt += "2. Incorporate any \"User's Additional Context\" into your reasoning and recommendations.\n"
+    prompt += "3. Only after completing steps 1 and 2 should you follow the OFFICIAL narrative instructions that follow.\n"
+
     prompt += "\n" + OFFICIAL_INSTRUCTIONS
     
     return prompt

@@ -82,6 +82,16 @@ def main():
             'apologies_high': THRESHOLDS.get('apologies_high', 6)
         }
     
+    # Reset all ADHD primary signal widgets to -NA on fresh app load
+    if 'adhd_widgets_initialized' not in st.session_state:
+        adhd_primary = [q for q in QUESTIONS if q.get('category') == 'adhd_primary']
+        for question in adhd_primary:
+            if question.get('type') == 'yesno':
+                st.session_state[f"{question['key']}_required_yesno"] = '-NA'
+            else:
+                st.session_state[f"{question['key']}_required_slider"] = '-NA'
+        st.session_state.adhd_widgets_initialized = True
+    
     # Check if input needed
     needs_prompt, reason = should_prompt_today()
     
@@ -802,23 +812,21 @@ def show_input_tab(needs_prompt):
                     
                     # Add recommendation to metrics before saving
                     metrics['recommendation'] = narrative
-                    
-                    # Save metrics with recommendation
-                    save_entry(metrics)
-                    
-                    # Also save narrative to narratives.json (for feedback history)
-                    from modules.narratives import save_narrative
-                    save_narrative(metrics['date'], narrative)
-                    
-                    # Store in session state for analysis tab
+
+                    # Store in session state for analysis tab (persist after user confirmation)
                     st.session_state.latest_narrative = narrative
-                    st.session_state.latest_metrics = metrics
+                    st.session_state.latest_metrics = dict(metrics)
                     st.session_state.latest_previous = previous
                     st.session_state.latest_changes = changes
                     st.session_state.last_analysis_date = metrics['date']
+                    st.session_state.pending_save_required = True
+                    st.session_state.pending_save_mode = 'new'
+                    st.session_state.pending_feedback_text = None
+                    st.session_state.checkbox_reset_date = metrics['date']
+                    st.session_state.pop('confirm_save_checkbox', None)
                     
-                    st.success("✅ Analysis complete and saved!")
-                    st.info("💡 Go to the '📖 Analysis' tab to see your story and insights!")
+                    st.success("✅ Analysis ready!")
+                    st.info("☑️ Review the story in the '📖 Analysis' tab and tick the save box to keep it in your history.")
                     
                 except Exception as e:
                     st.error(f"❌ Error: {str(e)}")
@@ -832,8 +840,43 @@ def show_analysis_tab():
     st.header("📖 Your Metrics Analysis")
     
     if 'latest_narrative' not in st.session_state:
-        st.info("👈 Submit a new entry first to see your personalized analysis!")
-        return
+        df = load_data()
+        if len(df) == 0:
+            st.info("👈 Submit a new entry first to see your personalized analysis!")
+            return
+
+        last_entry = df.iloc[-1]
+        last_recommendation = last_entry.get('recommendation')
+
+        if pd.isna(last_recommendation) or last_recommendation in (None, ""):
+            st.info("👈 Submit a new entry first to see your personalized analysis!")
+            return
+
+        last_entry_dict = last_entry.to_dict()
+        last_date_value = last_entry_dict.get('date')
+        if isinstance(last_date_value, pd.Timestamp):
+            last_date_str = last_date_value.strftime('%Y-%m-%d')
+        else:
+            last_date_str = str(last_date_value)
+        last_entry_dict['date'] = last_date_str
+
+        previous_entry = df.iloc[-2].to_dict() if len(df) > 1 else None
+        if previous_entry and isinstance(previous_entry.get('date'), pd.Timestamp):
+            previous_entry['date'] = previous_entry['date'].strftime('%Y-%m-%d')
+
+        last_changes = get_metric_changes(last_entry_dict, previous_entry) if previous_entry else None
+
+        st.session_state.latest_narrative = last_recommendation
+        st.session_state.latest_metrics = last_entry_dict
+        st.session_state.latest_previous = previous_entry
+        st.session_state.latest_changes = last_changes
+        st.session_state.last_analysis_date = last_entry_dict.get('date')
+        st.session_state.last_saved_narrative_date = last_entry_dict.get('date')
+        st.session_state.pending_save_required = False
+        st.session_state.pending_save_mode = None
+        st.session_state.pending_feedback_text = None
+        st.session_state.checkbox_reset_date = last_entry_dict.get('date')
+        st.session_state.pop('confirm_save_checkbox', None)
     
     metrics = st.session_state.latest_metrics
     previous = st.session_state.latest_previous
@@ -878,8 +921,8 @@ def show_analysis_tab():
     )
     stats = calculate_severity_statistics(severity_results)
     
-    # 2-column layout
-    col_findings, col_narrative = st.columns([1, 1])
+    # 2-column layout (narrow findings, wider narrative)
+    col_findings, col_narrative = st.columns([0.75, 1.25])
     
     # LEFT COLUMN: Findings
     with col_findings:
@@ -956,11 +999,54 @@ def show_analysis_tab():
         st.subheader("� Story")
         
         st.markdown(f"""
-        <div style="background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); max-height: 600px; overflow-y: auto;">
+        <div style="background: white; padding: 24px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.12); max-height: 640px; overflow-y: auto; font-size: 1.05em; line-height: 1.6;">
             {st.session_state.latest_narrative}
         </div>
         """, unsafe_allow_html=True)
-        
+
+        # Confirmation checkbox logic to persist narrative
+        current_story_date = st.session_state.last_analysis_date
+        pending_save = st.session_state.get('pending_save_required', False)
+
+        # Reset checkbox state when viewing a different story date
+        if st.session_state.get('checkbox_reset_date') != current_story_date:
+            st.session_state.checkbox_reset_date = current_story_date
+            st.session_state.pop('confirm_save_checkbox', None)
+
+        if pending_save:
+            st.warning("Review the story above. Tick the box below to save it to your history.")
+
+            confirm_checked = st.checkbox(
+                "✅ Save this story to my history",
+                key="confirm_save_checkbox"
+            )
+
+            if confirm_checked:
+                save_mode = st.session_state.get('pending_save_mode', 'new')
+                if save_mode == 'update':
+                    from modules.data import update_entry_recommendation
+                    update_entry_recommendation(current_story_date, st.session_state.latest_narrative)
+                else:
+                    save_entry(st.session_state.latest_metrics)
+
+                from modules.narratives import save_narrative
+                save_narrative(
+                    current_story_date,
+                    st.session_state.latest_narrative,
+                    st.session_state.get('pending_feedback_text')
+                )
+
+                st.session_state.pending_save_required = False
+                st.session_state.last_saved_narrative_date = current_story_date
+                st.session_state.pending_feedback_text = None
+                st.session_state.pop('confirm_save_checkbox', None)
+
+                st.success("💾 Story saved to history!")
+                st.rerun()
+        else:
+            if st.session_state.get('last_saved_narrative_date') == current_story_date:
+                st.success("💾 Story saved to history.")
+
         # Feedback section (compact)
         st.markdown("<br>", unsafe_allow_html=True)
         with st.expander("💬 Feedback & Regenerate", expanded=False):
@@ -983,7 +1069,7 @@ def show_analysis_tab():
                         current_model = st.session_state.config_thresholds.get('claude_model', 'claude-3-5-haiku-20241022')
                         
                         # Regenerate narrative with feedback included
-                        from modules.data import get_metric_changes, update_entry_recommendation, get_entry_by_date, load_data
+                        from modules.data import get_entry_by_date
                         
                         # Get the entry for this date
                         entry = get_entry_by_date(st.session_state.last_analysis_date)
@@ -1028,17 +1114,17 @@ def show_analysis_tab():
                             if error:
                                 st.error(error)
                             else:
-                                # Update the recommendation in the CSV (overwrite for same date)
-                                update_entry_recommendation(st.session_state.last_analysis_date, new_narrative)
-                                
-                                # Update session state
+                                # Update session state with pending regeneration requiring confirmation
                                 st.session_state.latest_narrative = new_narrative
+                                st.session_state.latest_metrics = dict(entry)
+                                st.session_state.latest_metrics['recommendation'] = new_narrative
+                                st.session_state.pending_save_required = True
+                                st.session_state.pending_save_mode = 'update'
+                                st.session_state.pending_feedback_text = feedback
+                                st.session_state.checkbox_reset_date = st.session_state.last_analysis_date
+                                st.session_state.pop('confirm_save_checkbox', None)
                                 
-                                # Save to narratives.json
-                                from modules.narratives import save_narrative
-                                save_narrative(st.session_state.last_analysis_date, new_narrative, feedback)
-                                
-                                st.success("✅ Recommendation regenerated and updated!")
+                                st.success("✅ Story regenerated. Tick the save box to update history.")
                                 st.rerun()
                         else:
                             st.error("Could not find entry for this date")
