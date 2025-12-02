@@ -1,0 +1,34 @@
+name: Deploy to Streamlit Cloud
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'requirements.txt'
+      - '.streamlit/**'
+      - '.python-version'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Trigger Streamlit Cloud Deployment
+        run: |
+          echo "🚀 Code pushed to main branch"
+          echo "📱 Streamlit Cloud will auto-deploy your app"
+          echo "⏱️  Deployment typically takes 2-3 minutes"
+          echo "🔗 Check your app at: https://share.streamlit.io"
+        
+      - name: Notify Deployment
+        if: success()
+        run: |
+          echo "✅ Deployment triggered successfully!"
+          echo "📊 Mobile app: src/metrics_app_mobile.py"
+          echo "🖥️  Desktop app: src/metrics_app.py"
