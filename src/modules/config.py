@@ -24,6 +24,7 @@ THRESHOLDS = {
     'flag_rushing_loop_high': int(os.getenv('FLAG_RUSHING_LOOP_HIGH', 1)),
     'flag_skipped_reset_high': int(os.getenv('FLAG_SKIPPED_RESET_HIGH', 1)),
     'flag_people_pleasing_high': int(os.getenv('FLAG_PEOPLE_PLEASING_HIGH', 1)),
+    'flag_physical_exercise_high': int(os.getenv('FLAG_PHYSICAL_EXERCISE_HIGH', 1)),
 
     # Work metrics (ALL follow "high values = problems" pattern)
     'deadline_pressure_high': int(os.getenv('DEADLINE_PRESSURE_HIGH', 7)),
@@ -138,6 +139,14 @@ QUESTIONS = [
         'required': True,
         'type': 'yesno',
         'description': 'Mark yes if you agreed to something mainly to avoid friction, even though you lacked capacity.'
+    },
+    {
+        'key': 'flag_physical_exercise',
+        'label': 'Did physical exercise today',
+        'category': 'adhd_primary',
+        'required': True,
+        'type': 'yesno',
+        'description': 'Did you do any intentional physical activity today? (walk, run, gym, sports, etc.)'
     },
 
     # Work metrics (all optional, higher = worse)
