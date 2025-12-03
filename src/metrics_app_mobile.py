@@ -4,7 +4,7 @@ Metrics Tracker - Mobile Version
 Simplified single-column layout optimized for phone screens
 Shares backend with desktop version (metrics_app.py)
 
-Version: 1.0.1 (CD pipeline test)
+Version: 1.0.2 (Force deployment - added physical exercise field)
 """
 
 import math
