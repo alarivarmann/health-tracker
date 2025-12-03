@@ -126,7 +126,7 @@ QUESTIONS = [
     },
     {
         'key': 'flag_skipped_reset',
-        'label': 'Skipped a reset or bio break',
+        'label': 'Skipped pauses between activities',
         'category': 'adhd_primary',
         'required': True,
         'type': 'yesno',
