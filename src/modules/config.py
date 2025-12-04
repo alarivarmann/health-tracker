@@ -142,11 +142,11 @@ QUESTIONS = [
     },
     {
         'key': 'flag_physical_exercise',
-        'label': 'Did physical exercise today',
+        'label': 'Have planned physical exercise for today',
         'category': 'adhd_primary',
         'required': True,
         'type': 'yesno',
-        'description': 'Did you do any intentional physical activity today? (walk, run, gym, sports, etc.)'
+        'description': 'Do you have intentional physical activity planned for today? (walk, run, gym, sports, etc.)'
     },
 
     # Work metrics (all optional, higher = worse)
