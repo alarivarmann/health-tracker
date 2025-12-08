@@ -39,6 +39,29 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+
+def normalize_date_value(date_value):
+    if date_value is None:
+        return None
+
+    if isinstance(date_value, pd.Timestamp):
+        return date_value.strftime('%Y-%m-%d')
+
+    if isinstance(date_value, datetime):
+        return date_value.strftime('%Y-%m-%d')
+
+    date_str = str(date_value).strip()
+    if not date_str or date_str.lower() in {'none', 'nan'}:
+        return None
+
+    try:
+        parsed = pd.to_datetime(date_str)
+        if pd.isna(parsed):
+            return date_str
+        return parsed.strftime('%Y-%m-%d')
+    except Exception:
+        return date_str
+
 def main():
     st.title("📱 Metrics Tracker")
     st.caption("Mobile Version")
@@ -205,11 +228,12 @@ def show_entry_tab():
                     st.session_state.latest_metrics = dict(metrics)
                     st.session_state.latest_previous = previous
                     st.session_state.latest_changes = changes
-                    st.session_state.last_analysis_date = metrics['date']
+                    analysis_date = normalize_date_value(metrics.get('date'))
+                    st.session_state.last_analysis_date = analysis_date
                     st.session_state.pending_save_required = True
                     st.session_state.pending_save_mode = 'new'
                     st.session_state.pending_feedback_text = None
-                    st.session_state.checkbox_reset_date = metrics['date']
+                    st.session_state.checkbox_reset_date = analysis_date
                     st.session_state.pop('confirm_save_mobile', None)
                     
                     st.success("✅ Analysis ready!")
@@ -238,14 +262,12 @@ def show_analysis_tab():
         
         # Hydrate session state from saved data
         last_entry_dict = last_entry.to_dict()
-        last_date = last_entry_dict.get('date')
-        if isinstance(last_date, pd.Timestamp):
-            last_date = last_date.strftime('%Y-%m-%d')
-        last_entry_dict['date'] = str(last_date)
-        
+        last_date = normalize_date_value(last_entry_dict.get('date'))
+        last_entry_dict['date'] = last_date
+
         previous_entry = df.iloc[-2].to_dict() if len(df) > 1 else None
-        if previous_entry and isinstance(previous_entry.get('date'), pd.Timestamp):
-            previous_entry['date'] = previous_entry['date'].strftime('%Y-%m-%d')
+        if previous_entry:
+            previous_entry['date'] = normalize_date_value(previous_entry.get('date'))
         
         last_changes = get_metric_changes(last_entry_dict, previous_entry) if previous_entry else None
         
@@ -253,11 +275,14 @@ def show_analysis_tab():
         st.session_state.latest_metrics = last_entry_dict
         st.session_state.latest_previous = previous_entry
         st.session_state.latest_changes = last_changes
-        st.session_state.last_analysis_date = last_entry_dict.get('date')
-        st.session_state.last_saved_narrative_date = last_entry_dict.get('date')
+        st.session_state.last_analysis_date = last_date
+        st.session_state.last_saved_narrative_date = last_date
         st.session_state.pending_save_required = False
         st.session_state.pop('confirm_save_mobile', None)
     
+    if 'last_analysis_date' in st.session_state:
+        st.session_state.last_analysis_date = normalize_date_value(st.session_state.last_analysis_date)
+
     # Display narrative
     st.markdown(f"""
     <div class="narrative-box">
@@ -266,7 +291,12 @@ def show_analysis_tab():
     """, unsafe_allow_html=True)
     
     # Save confirmation
-    current_story_date = st.session_state.last_analysis_date
+    current_story_date = normalize_date_value(st.session_state.get('last_analysis_date'))
+    if not current_story_date:
+        st.warning("Generate or load an analysis before regenerating the story.")
+        return
+
+    st.session_state.last_analysis_date = current_story_date
     pending_save = st.session_state.get('pending_save_required', False)
     
     if st.session_state.get('checkbox_reset_date') != current_story_date:
@@ -315,17 +345,17 @@ def show_analysis_tab():
         if st.button("🔄 Regenerate", use_container_width=True):
             if feedback.strip():
                 with st.spinner("🤔 Regenerating..."):
-                    update_narrative_with_feedback(st.session_state.last_analysis_date, feedback)
+                    update_narrative_with_feedback(current_story_date, feedback)
                     
                     current_mode = st.session_state.config_thresholds.get('mode', 'Free')
                     current_model = st.session_state.config_thresholds.get('claude_model', 'claude-3-5-haiku-20241022')
                     
                     from modules.data import get_entry_by_date
-                    entry = get_entry_by_date(st.session_state.last_analysis_date)
+                    entry = get_entry_by_date(current_story_date)
                     
                     if entry:
                         df = load_data()
-                        current_idx = df[df['date'] == st.session_state.last_analysis_date].index[0]
+                        current_idx = df[df['date'] == current_story_date].index[0]
                         previous = df.iloc[current_idx - 1].to_dict() if current_idx > 0 else None
                         changes = get_metric_changes(entry, previous)
                         

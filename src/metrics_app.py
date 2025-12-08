@@ -10,6 +10,30 @@ import plotly.graph_objects as go
 import pandas as pd
 from datetime import datetime
 
+
+def normalize_date_value(date_value):
+    """Normalize any stored date value into YYYY-MM-DD string."""
+    if date_value is None:
+        return None
+
+    if isinstance(date_value, pd.Timestamp):
+        return date_value.strftime('%Y-%m-%d')
+
+    if isinstance(date_value, datetime):
+        return date_value.strftime('%Y-%m-%d')
+
+    date_str = str(date_value).strip()
+    if not date_str or date_str.lower() in {'none', 'nan'}:
+        return None
+
+    try:
+        parsed = pd.to_datetime(date_str)
+        if pd.isna(parsed):
+            return date_str
+        return parsed.strftime('%Y-%m-%d')
+    except Exception:
+        return date_str
+
 # Import our modules
 from modules.config import QUESTIONS
 from modules.data import (
@@ -818,7 +842,7 @@ def show_input_tab(needs_prompt):
                     st.session_state.latest_metrics = dict(metrics)
                     st.session_state.latest_previous = previous
                     st.session_state.latest_changes = changes
-                    st.session_state.last_analysis_date = metrics['date']
+                    st.session_state.last_analysis_date = normalize_date_value(metrics.get('date'))
                     st.session_state.pending_save_required = True
                     st.session_state.pending_save_mode = 'new'
                     st.session_state.pending_feedback_text = None
@@ -854,15 +878,12 @@ def show_analysis_tab():
 
         last_entry_dict = last_entry.to_dict()
         last_date_value = last_entry_dict.get('date')
-        if isinstance(last_date_value, pd.Timestamp):
-            last_date_str = last_date_value.strftime('%Y-%m-%d')
-        else:
-            last_date_str = str(last_date_value)
+        last_date_str = normalize_date_value(last_date_value)
         last_entry_dict['date'] = last_date_str
 
         previous_entry = df.iloc[-2].to_dict() if len(df) > 1 else None
-        if previous_entry and isinstance(previous_entry.get('date'), pd.Timestamp):
-            previous_entry['date'] = previous_entry['date'].strftime('%Y-%m-%d')
+        if previous_entry:
+            previous_entry['date'] = normalize_date_value(previous_entry.get('date'))
 
         last_changes = get_metric_changes(last_entry_dict, previous_entry) if previous_entry else None
 
@@ -870,14 +891,17 @@ def show_analysis_tab():
         st.session_state.latest_metrics = last_entry_dict
         st.session_state.latest_previous = previous_entry
         st.session_state.latest_changes = last_changes
-        st.session_state.last_analysis_date = last_entry_dict.get('date')
-        st.session_state.last_saved_narrative_date = last_entry_dict.get('date')
+        st.session_state.last_analysis_date = last_date_str
+        st.session_state.last_saved_narrative_date = last_date_str
         st.session_state.pending_save_required = False
         st.session_state.pending_save_mode = None
         st.session_state.pending_feedback_text = None
-        st.session_state.checkbox_reset_date = last_entry_dict.get('date')
+        st.session_state.checkbox_reset_date = last_date_str
         st.session_state.pop('confirm_save_checkbox', None)
     
+    if 'last_analysis_date' in st.session_state:
+        st.session_state.last_analysis_date = normalize_date_value(st.session_state.last_analysis_date)
+
     metrics = st.session_state.latest_metrics
     previous = st.session_state.latest_previous
     
@@ -1005,7 +1029,12 @@ def show_analysis_tab():
         """, unsafe_allow_html=True)
 
         # Confirmation checkbox logic to persist narrative
-        current_story_date = st.session_state.last_analysis_date
+        current_story_date = normalize_date_value(st.session_state.get('last_analysis_date'))
+        if not current_story_date:
+            st.warning("Generate or load an analysis before regenerating the story.")
+            return
+
+        st.session_state.last_analysis_date = current_story_date
         pending_save = st.session_state.get('pending_save_required', False)
 
         # Reset checkbox state when viewing a different story date
@@ -1062,7 +1091,7 @@ def show_analysis_tab():
                 if feedback.strip():
                     with st.spinner("🤔 Regenerating recommendation with your feedback..."):
                         # Save feedback first
-                        update_narrative_with_feedback(st.session_state.last_analysis_date, feedback)
+                        update_narrative_with_feedback(current_story_date, feedback)
                         
                         # Get the current mode and model
                         current_mode = st.session_state.config_thresholds.get('mode', 'Free')
@@ -1072,12 +1101,12 @@ def show_analysis_tab():
                         from modules.data import get_entry_by_date
                         
                         # Get the entry for this date
-                        entry = get_entry_by_date(st.session_state.last_analysis_date)
+                        entry = get_entry_by_date(current_story_date)
                         if entry:
                             # Get previous entry for changes calculation
                             # We need to get the entry BEFORE the current one
                             df = load_data()
-                            current_idx = df[df['date'] == st.session_state.last_analysis_date].index[0]
+                            current_idx = df[df['date'] == current_story_date].index[0]
                             previous = df.iloc[current_idx - 1].to_dict() if current_idx > 0 else None
                             
                             changes = get_metric_changes(entry, previous)
@@ -1121,7 +1150,7 @@ def show_analysis_tab():
                                 st.session_state.pending_save_required = True
                                 st.session_state.pending_save_mode = 'update'
                                 st.session_state.pending_feedback_text = feedback
-                                st.session_state.checkbox_reset_date = st.session_state.last_analysis_date
+                                st.session_state.checkbox_reset_date = current_story_date
                                 st.session_state.pop('confirm_save_checkbox', None)
                                 
                                 st.success("✅ Story regenerated. Tick the save box to update history.")
