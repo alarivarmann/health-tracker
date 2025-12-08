@@ -343,45 +343,72 @@ def show_analysis_tab():
             key="mobile_feedback",
             placeholder="What should be different?"
         )
-        
+
         if st.button("🔄 Regenerate", use_container_width=True):
-            if feedback.strip():
-                with st.spinner("🤔 Regenerating..."):
-                    update_narrative_with_feedback(current_story_date, feedback)
-                    
-                    current_mode = st.session_state.config_thresholds.get('mode', 'Free')
-                    current_model = st.session_state.config_thresholds.get('claude_model', 'claude-3-5-haiku-20241022')
-                    
-                    from modules.data import get_entry_by_date
-                    entry = get_entry_by_date(current_story_date)
-                    
-                    if entry:
-                        df = load_data()
-                        current_idx = df[df['date'] == current_story_date].index[0]
-                        previous = df.iloc[current_idx - 1].to_dict() if current_idx > 0 else None
-                        changes = get_metric_changes(entry, previous)
-                        
-                        new_narrative, error = analyze_with_narrative(
-                            entry, previous, changes,
-                            mode=current_mode,
-                            model=current_model
-                        )
-                        
-                        if error:
-                            st.error(error)
-                        else:
-                            st.session_state.latest_narrative = new_narrative
-                            st.session_state.latest_metrics = dict(entry)
-                            st.session_state.latest_metrics['recommendation'] = new_narrative
-                            st.session_state.pending_save_required = True
-                            st.session_state.pending_save_mode = 'update'
-                            st.session_state.pending_feedback_text = feedback
-                            st.session_state.pop('confirm_save_mobile', None)
-                            
-                            st.success("✅ Story regenerated. Review and save.")
-                            st.rerun()
-            else:
+            feedback_text = feedback.strip()
+            if not feedback_text:
                 st.warning("Enter feedback first")
+                return
+
+            with st.spinner("🤔 Regenerating..."):
+                update_narrative_with_feedback(current_story_date, feedback_text)
+
+                current_mode = st.session_state.config_thresholds.get('mode', 'Free')
+                current_model = st.session_state.config_thresholds.get('claude_model', 'claude-3-5-haiku-20241022')
+
+                from modules.data import get_entry_by_date
+                entry = get_entry_by_date(current_story_date)
+                entry_source = "stored"
+
+                if not entry:
+                    latest_metrics = st.session_state.get('latest_metrics')
+                    if latest_metrics:
+                        entry = dict(latest_metrics)
+                        entry['date'] = normalize_date_value(entry.get('date')) or current_story_date
+                        entry_source = "session"
+
+                if not entry:
+                    st.error("Could not find entry for this date. Save the story first, then try again.")
+                    return
+
+                previous = None
+                if entry_source == "stored":
+                    df = load_data()
+                    if len(df) > 0:
+                        df = df.copy()
+                        df['date'] = df['date'].astype(str)
+                        matching_indices = df.index[df['date'] == entry['date']].tolist()
+                        if matching_indices:
+                            idx = matching_indices[-1]
+                            previous = df.iloc[idx - 1].to_dict() if idx > 0 else None
+                else:
+                    previous = st.session_state.get('latest_previous')
+
+                changes = get_metric_changes(entry, previous)
+
+                new_narrative, error = analyze_with_narrative(
+                    entry,
+                    previous,
+                    changes,
+                    mode=current_mode,
+                    model=current_model
+                )
+
+                if error:
+                    st.error(error)
+                    return
+
+                st.session_state.latest_narrative = new_narrative
+                entry_with_recommendation = dict(entry)
+                entry_with_recommendation['recommendation'] = new_narrative
+                st.session_state.latest_metrics = entry_with_recommendation
+                st.session_state.pending_save_required = True
+                st.session_state.pending_save_mode = 'update' if entry_source == "stored" else 'new'
+                st.session_state.pending_feedback_text = feedback_text
+                st.session_state.pop('confirm_save_mobile', None)
+
+                st.success("✅ Story regenerated. Review and save.")
+                st.rerun()
 
 if __name__ == "__main__":
     main()

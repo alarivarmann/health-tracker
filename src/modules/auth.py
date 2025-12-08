@@ -9,6 +9,7 @@ import streamlit as st
 
 _PASSWORD_STATE_KEY = "app_password_authenticated"
 _PASSWORD_INPUT_KEY = "app_password_input"
+_PASSWORD_ATTEMPTED_KEY = "app_password_attempted"
 
 
 def _load_configured_password() -> Optional[str]:
@@ -46,11 +47,16 @@ def require_app_password() -> None:
         )
         st.stop()
 
+    if _PASSWORD_ATTEMPTED_KEY not in st.session_state:
+        st.session_state[_PASSWORD_ATTEMPTED_KEY] = False
+
     def _password_entered() -> None:
         entered = st.session_state.get(_PASSWORD_INPUT_KEY, "")
+        st.session_state[_PASSWORD_ATTEMPTED_KEY] = True
         if entered == app_password:
             st.session_state[_PASSWORD_STATE_KEY] = True
             st.session_state.pop(_PASSWORD_INPUT_KEY, None)
+            st.session_state[_PASSWORD_ATTEMPTED_KEY] = False
         else:
             st.session_state[_PASSWORD_STATE_KEY] = False
 
@@ -67,7 +73,7 @@ def require_app_password() -> None:
     if st.session_state.get(_PASSWORD_STATE_KEY):
         return
 
-    if _PASSWORD_INPUT_KEY in st.session_state:
+    if st.session_state.get(_PASSWORD_ATTEMPTED_KEY, False):
         st.error("😕 Incorrect password")
 
     st.stop()

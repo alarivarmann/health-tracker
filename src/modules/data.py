@@ -77,7 +77,8 @@ def update_entry_recommendation(date, recommendation):
         return False
     
     # Find the row with matching date
-    mask = df['date'] == date
+    normalized_date = str(date)
+    mask = df['date'].astype(str) == normalized_date
     if not mask.any():
         return False
     
@@ -100,7 +101,7 @@ def get_entry_by_date(date):
     if len(df) == 0:
         return None
     
-    mask = df['date'] == date
+    mask = df['date'].astype(str) == str(date)
     if not mask.any():
         return None
     

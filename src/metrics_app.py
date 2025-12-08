@@ -1090,78 +1090,94 @@ def show_analysis_tab():
                 height=100
             )
             
-            if st.button("� Regenerate with Feedback", use_container_width=True):
-                if feedback.strip():
-                    with st.spinner("🤔 Regenerating recommendation with your feedback..."):
-                        # Save feedback first
-                        update_narrative_with_feedback(current_story_date, feedback)
-                        
-                        # Get the current mode and model
-                        current_mode = st.session_state.config_thresholds.get('mode', 'Free')
-                        current_model = st.session_state.config_thresholds.get('claude_model', 'claude-3-5-haiku-20241022')
-                        
-                        # Regenerate narrative with feedback included
-                        from modules.data import get_entry_by_date
-                        
-                        # Get the entry for this date
-                        entry = get_entry_by_date(current_story_date)
-                        if entry:
-                            # Get previous entry for changes calculation
-                            # We need to get the entry BEFORE the current one
-                            df = load_data()
-                            current_idx = df[df['date'] == current_story_date].index[0]
-                            previous = df.iloc[current_idx - 1].to_dict() if current_idx > 0 else None
-                            
-                            changes = get_metric_changes(entry, previous)
-                            
-                            # Compute severity if in Free mode
-                            severity_results = None
-                            custom_thresholds = None
-                            if current_mode == 'Free':
-                                from modules.config import THRESHOLDS
-                                custom_thresholds = THRESHOLDS.copy()
-                                for key, value in st.session_state.config_thresholds.items():
-                                    if key in custom_thresholds:
-                                        custom_thresholds[key] = value
-                                
-                                problem_threshold = st.session_state.config_thresholds.get('problem_threshold', 6)
-                                increase_threshold = st.session_state.config_thresholds.get('increase_threshold', 1.0)
-                                severity_results = analyze_metrics_severity(
-                                    entry, 
-                                    previous,
-                                    problem_threshold=problem_threshold,
-                                    increase_threshold=increase_threshold,
-                                    custom_thresholds=custom_thresholds
-                                )
-                            
-                            # Regenerate narrative (feedback is already saved and will be included)
-                            new_narrative, error = analyze_with_narrative(
-                                entry, previous, changes,
-                                mode=current_mode,
-                                model=current_model,
-                                severity_results=severity_results,
-                                custom_thresholds=custom_thresholds
-                            )
-                            
-                            if error:
-                                st.error(error)
-                            else:
-                                # Update session state with pending regeneration requiring confirmation
-                                st.session_state.latest_narrative = new_narrative
-                                st.session_state.latest_metrics = dict(entry)
-                                st.session_state.latest_metrics['recommendation'] = new_narrative
-                                st.session_state.pending_save_required = True
-                                st.session_state.pending_save_mode = 'update'
-                                st.session_state.pending_feedback_text = feedback
-                                st.session_state.checkbox_reset_date = current_story_date
-                                st.session_state.pop('confirm_save_checkbox', None)
-                                
-                                st.success("✅ Story regenerated. Tick the save box to update history.")
-                                st.rerun()
-                        else:
-                            st.error("Could not find entry for this date")
-                else:
+            if st.button("🔄 Regenerate with Feedback", use_container_width=True):
+                feedback_text = feedback.strip()
+                if not feedback_text:
                     st.warning("Enter feedback first")
+                    return
+
+                with st.spinner("🤔 Regenerating recommendation with your feedback..."):
+                    update_narrative_with_feedback(current_story_date, feedback_text)
+
+                    from modules.data import get_entry_by_date
+
+                    entry = get_entry_by_date(current_story_date)
+                    entry_source = "stored"
+
+                    if not entry:
+                        latest_metrics = st.session_state.get('latest_metrics')
+                        if latest_metrics:
+                            entry = dict(latest_metrics)
+                            entry['date'] = normalize_date_value(entry.get('date')) or current_story_date
+                            entry_source = "session"
+
+                    if not entry:
+                        st.error("Could not find entry for this date. Save the story first, then try again.")
+                        return
+
+                    previous = None
+                    if entry_source == "stored":
+                        df = load_data()
+                        if len(df) > 0:
+                            df = df.copy()
+                            df['date'] = df['date'].astype(str)
+                            matching_indices = df.index[df['date'] == entry['date']].tolist()
+                            if matching_indices:
+                                idx = matching_indices[-1]
+                                previous = df.iloc[idx - 1].to_dict() if idx > 0 else None
+                    else:
+                        previous = st.session_state.get('latest_previous')
+
+                    changes = get_metric_changes(entry, previous)
+
+                    current_mode = st.session_state.config_thresholds.get('mode', 'Free')
+                    current_model = st.session_state.config_thresholds.get('claude_model', 'claude-3-5-haiku-20241022')
+
+                    severity_results = None
+                    custom_thresholds = None
+                    if current_mode == 'Free':
+                        from modules.config import THRESHOLDS
+                        custom_thresholds = THRESHOLDS.copy()
+                        for key, value in st.session_state.config_thresholds.items():
+                            if key in custom_thresholds:
+                                custom_thresholds[key] = value
+
+                        problem_threshold = st.session_state.config_thresholds.get('problem_threshold', 6)
+                        increase_threshold = st.session_state.config_thresholds.get('increase_threshold', 1.0)
+                        severity_results = analyze_metrics_severity(
+                            entry,
+                            previous,
+                            problem_threshold=problem_threshold,
+                            increase_threshold=increase_threshold,
+                            custom_thresholds=custom_thresholds
+                        )
+
+                    new_narrative, error = analyze_with_narrative(
+                        entry,
+                        previous,
+                        changes,
+                        mode=current_mode,
+                        model=current_model,
+                        severity_results=severity_results,
+                        custom_thresholds=custom_thresholds
+                    )
+
+                    if error:
+                        st.error(error)
+                        return
+
+                    st.session_state.latest_narrative = new_narrative
+                    entry_with_recommendation = dict(entry)
+                    entry_with_recommendation['recommendation'] = new_narrative
+                    st.session_state.latest_metrics = entry_with_recommendation
+                    st.session_state.pending_save_required = True
+                    st.session_state.pending_save_mode = 'update' if entry_source == "stored" else 'new'
+                    st.session_state.pending_feedback_text = feedback_text
+                    st.session_state.checkbox_reset_date = current_story_date
+                    st.session_state.pop('confirm_save_checkbox', None)
+
+                    st.success("✅ Story regenerated. Tick the save box to update history.")
+                    st.rerun()
 
 def show_dashboard_tab():
     """Dashboard Tab - Visualizations"""
