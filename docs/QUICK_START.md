@@ -34,12 +34,13 @@ uv run streamlit run src/metrics_app.py --server.port 8501
 
 ## 📱 Access URLs
 
-- **Desktop**: http://localhost:8501
-- **Mobile**: http://localhost:8502
+- **Desktop**: [http://localhost:8501](http://localhost:8501)
+- **Mobile**: [http://localhost:8502](http://localhost:8502)
 
 ## 🔧 Port Configuration
 
 Both apps can run simultaneously:
+
 - Desktop uses port **8501** (default Streamlit port)
 - Mobile uses port **8502** (avoids conflicts)
 
@@ -50,8 +51,21 @@ Both apps can run simultaneously:
 - Mobile app loads faster (simplified UI)
 - Desktop app has full analytics dashboard
 
+## 🔒 Password Protection
+
+- The AI-powered analysis now requires a password before loading the app UI.
+- Set `APP_PASSWORD` in `.streamlit/secrets.toml` for local runs, or export it as an environment variable before launching Streamlit:
+
+```bash
+export APP_PASSWORD="your-strong-password"
+uv run streamlit run src/metrics_app.py
+```
+
+- Once authenticated, the session stays unlocked until the browser tab is closed.
+
+
 ## 🌐 Cloud Deployment
 
-Your mobile app is deployed at: https://share.streamlit.io/
+Your mobile app is deployed at: [share.streamlit.io](https://share.streamlit.io/)
 
 The cloud version also uses shared data with desktop when you sync backups.

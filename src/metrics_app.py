@@ -10,6 +10,8 @@ import plotly.graph_objects as go
 import pandas as pd
 from datetime import datetime
 
+from modules.auth import require_app_password
+
 
 def normalize_date_value(date_value):
     """Normalize any stored date value into YYYY-MM-DD string."""
@@ -67,6 +69,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 def main():
+    require_app_password()
     st.title("📊 Work & Individual Metrics Tracker")
     
     # Initialize session state for thresholds (from .env as defaults)

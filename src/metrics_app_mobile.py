@@ -13,6 +13,7 @@ import pandas as pd
 from datetime import datetime
 
 # Import shared modules (no changes to existing code)
+from modules.auth import require_app_password
 from modules.config import QUESTIONS
 from modules.data import (
     load_data, save_entry, get_previous_entry,
@@ -63,6 +64,7 @@ def normalize_date_value(date_value):
         return date_str
 
 def main():
+    require_app_password()
     st.title("📱 Metrics Tracker")
     st.caption("Mobile Version")
     
