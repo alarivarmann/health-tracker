@@ -21,6 +21,7 @@ from modules.data import (
 )
 from modules.analysis import analyze_with_narrative, update_narrative_with_feedback
 from modules.severity import analyze_metrics_severity, calculate_severity_statistics
+from modules.ui_controls import render_model_controls
 
 # Page config optimized for mobile
 st.set_page_config(
@@ -114,6 +115,11 @@ def show_entry_tab():
     
     metrics = {'date': datetime.now().strftime('%Y-%m-%d')}
     adhd_primary = [q for q in QUESTIONS if q.get('category') == 'adhd_primary']
+
+    st.markdown("---")
+    st.subheader("🤖 Narrative Engine")
+    render_model_controls("mobile_entry", show_heading=False)
+    st.caption("Pick a model before you submit to tailor the story.")
     
     with st.form("mobile_metrics_form"):
         st.subheader("🌟 ADHD Signals")
@@ -336,7 +342,8 @@ def show_analysis_tab():
     # Compact feedback section
     st.markdown("---")
     with st.expander("💬 Regenerate with Feedback"):
-        st.caption("Not satisfied? Provide feedback to improve")
+        st.caption("Not satisfied? Switch models and provide feedback to improve.")
+        render_model_controls("mobile_analysis", show_heading=False)
         feedback = st.text_area(
             "Your feedback:",
             height=80,

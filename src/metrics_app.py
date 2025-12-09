@@ -45,6 +45,7 @@ from modules.data import (
 from modules.analysis import analyze_with_narrative, update_narrative_with_feedback
 from modules.insights import generate_quick_insights, should_recommend_delivery_log
 from modules.severity import analyze_metrics_severity, get_top_issues, calculate_severity_statistics
+from modules.ui_controls import render_model_controls
 
 # Page config
 st.set_page_config(
@@ -691,6 +692,11 @@ def show_input_tab(needs_prompt):
                 return 0
         return None
 
+    st.markdown("---")
+    st.subheader("🤖 Narrative Engine")
+    render_model_controls("entry", show_heading=False)
+    st.caption("Pick a model before you submit so both the story and regenerate flow use your choice.")
+
     with st.form("metrics_form"):
         st.subheader("🌟 ADHD Primary Signals (required)")
         st.caption("These eight checks keep you honest about stress build-up. Complete them before saving.")
@@ -1082,7 +1088,9 @@ def show_analysis_tab():
         # Feedback section (compact)
         st.markdown("<br>", unsafe_allow_html=True)
         with st.expander("💬 Feedback & Regenerate", expanded=False):
-            st.caption("Provide feedback to regenerate an improved recommendation")
+            st.caption("Provide feedback and optionally switch models before regenerating.")
+            render_model_controls("analysis", show_heading=False)
+            st.caption("Model changes here are remembered for future runs.")
             feedback = st.text_area(
                 "Your feedback:",
                 placeholder="What was inaccurate? What should be adjusted?",
