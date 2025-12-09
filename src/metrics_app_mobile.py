@@ -14,7 +14,7 @@ from datetime import datetime
 
 # Import shared modules (no changes to existing code)
 from modules.auth import require_app_password
-from modules.config import QUESTIONS
+from modules.config import QUESTIONS, ANTHROPIC_API_KEY
 from modules.data import (
     load_data, save_entry, get_previous_entry,
     should_prompt_today, get_metric_changes
@@ -107,8 +107,6 @@ def main():
 
 def show_entry_tab():
     """Mobile-optimized entry form - single column, touch-friendly"""
-    st.header("Daily Check-In")
-    
     previous = get_previous_entry()
     if previous:
         st.caption(f"📅 Last entry: {previous.get('date', 'Unknown')}")
@@ -116,10 +114,14 @@ def show_entry_tab():
     metrics = {'date': datetime.now().strftime('%Y-%m-%d')}
     adhd_primary = [q for q in QUESTIONS if q.get('category') == 'adhd_primary']
 
-    st.markdown("---")
-    st.subheader("🤖 Narrative Engine")
-    render_model_controls("mobile_entry", show_heading=False)
-    st.caption("Pick a model before you submit to tailor the story.")
+    has_api_key = bool(ANTHROPIC_API_KEY and ANTHROPIC_API_KEY != 'your_key_here')
+    if has_api_key:
+        if st.session_state.config_thresholds.get('mode') != 'Claude AI':
+            st.session_state.config_thresholds['mode'] = 'Claude AI'
+        st.subheader("🤖 Claude Model")
+        render_model_controls("mobile_entry", show_heading=False, allow_mode_toggle=False)
+    else:
+        st.caption("AI mode unavailable; using rule-based narrative for now.")
     
     with st.form("mobile_metrics_form"):
         st.subheader("🌟 ADHD Signals")
@@ -155,8 +157,7 @@ def show_entry_tab():
             st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
         
         # Optional context
-        current_mode = st.session_state.config_thresholds.get('mode', 'Free')
-        if current_mode == 'Claude AI':
+        if st.session_state.config_thresholds.get('mode', 'Free') == 'Claude AI':
             st.markdown("---")
             st.subheader("💬 Additional Context (Optional)")
             context = st.text_area(
@@ -343,7 +344,7 @@ def show_analysis_tab():
     st.markdown("---")
     with st.expander("💬 Regenerate with Feedback"):
         st.caption("Not satisfied? Switch models and provide feedback to improve.")
-        render_model_controls("mobile_analysis", show_heading=False)
+        render_model_controls("mobile_analysis", show_heading=False, allow_mode_toggle=False)
         feedback = st.text_area(
             "Your feedback:",
             height=80,
