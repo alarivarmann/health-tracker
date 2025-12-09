@@ -8,6 +8,7 @@ Version: 1.0.2 (Force deployment - added physical exercise field)
 """
 
 import math
+from typing import Optional
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -19,9 +20,12 @@ from modules.data import (
     load_data, save_entry, get_previous_entry,
     should_prompt_today, get_metric_changes
 )
-from modules.analysis import analyze_with_narrative, update_narrative_with_feedback
+from modules.analysis import (
+    analyze_with_narrative,
+    update_narrative_with_feedback,
+    get_available_claude_models,
+)
 from modules.severity import analyze_metrics_severity, calculate_severity_statistics
-from modules.ui_controls import render_model_controls
 
 # Page config optimized for mobile
 st.set_page_config(
@@ -63,6 +67,47 @@ def normalize_date_value(date_value):
         return parsed.strftime('%Y-%m-%d')
     except Exception:
         return date_str
+
+def render_mobile_model_selector(*, section_key: str, compact: bool = False) -> None:
+    """Render a lightweight Claude model selector for mobile flows."""
+
+    has_api_key = bool(ANTHROPIC_API_KEY and ANTHROPIC_API_KEY != 'your_key_here')
+    if not has_api_key:
+        if not compact:
+            st.caption("AI mode unavailable; using rule-based narrative for now.")
+        return
+
+    if st.session_state.config_thresholds.get('mode') != 'Claude AI':
+        st.session_state.config_thresholds['mode'] = 'Claude AI'
+
+    models = get_available_claude_models()
+    if not models:
+        st.caption("Claude models are temporarily unavailable. Using defaults.")
+        return
+
+    model_options = {model['name']: model['id'] for model in models}
+    options = list(model_options.keys())
+
+    current_model_id = st.session_state.config_thresholds.get('claude_model', models[0]['id'])
+    current_model_name: Optional[str] = next(
+        (name for name, model_id in model_options.items() if model_id == current_model_id),
+        None
+    )
+
+    default_index = options.index(current_model_name) if current_model_name in options else 0
+
+    label = "Claude model" if not compact else "Claude model for regenerate"
+    selected_model_name = st.selectbox(
+        label,
+        options=options,
+        index=default_index,
+        key=f"claude_model_selector_{section_key}"
+    )
+
+    st.session_state.config_thresholds['claude_model'] = model_options[selected_model_name]
+
+    if not compact:
+        st.caption("Pick a model to fine-tune story depth, speed, and cost.")
 
 def main():
     require_app_password()
@@ -114,14 +159,7 @@ def show_entry_tab():
     metrics = {'date': datetime.now().strftime('%Y-%m-%d')}
     adhd_primary = [q for q in QUESTIONS if q.get('category') == 'adhd_primary']
 
-    has_api_key = bool(ANTHROPIC_API_KEY and ANTHROPIC_API_KEY != 'your_key_here')
-    if has_api_key:
-        if st.session_state.config_thresholds.get('mode') != 'Claude AI':
-            st.session_state.config_thresholds['mode'] = 'Claude AI'
-        st.subheader("🤖 Claude Model")
-        render_model_controls("mobile_entry", show_heading=False, allow_mode_toggle=False)
-    else:
-        st.caption("AI mode unavailable; using rule-based narrative for now.")
+    render_mobile_model_selector(section_key="mobile_entry")
     
     with st.form("mobile_metrics_form"):
         st.subheader("🌟 ADHD Signals")
@@ -344,7 +382,7 @@ def show_analysis_tab():
     st.markdown("---")
     with st.expander("💬 Regenerate with Feedback"):
         st.caption("Not satisfied? Switch models and provide feedback to improve.")
-        render_model_controls("mobile_analysis", show_heading=False, allow_mode_toggle=False)
+        render_mobile_model_selector(section_key="mobile_analysis", compact=True)
         feedback = st.text_area(
             "Your feedback:",
             height=80,
